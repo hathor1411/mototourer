@@ -1,175 +1,140 @@
-# 🏍️ MotoTourer – Roadmap (MVP, 8 Wochen)
-
-Eine OpenStreetMap-basierte Web- und Mobile-App zur Planung von **mehrtägigen Motorradtouren** mit automatischer Etappenaufteilung und Kartenansicht.
-
----
-
-## 🎯 Zielsetzung
-
-- Entwicklung eines voll funktionsfähigen MVP innerhalb von 8 Wochen  
-- Fokus auf Routenplanung, Etappenlogik und GPX-Export  
-- Optional: Nutzerverwaltung und Hosting auf kostenlosen Plattformen  
+Alles klar ✅
+Hier bekommst du jetzt eine **vereinfachte, klare Roadmap** für **MotoTourer**,
+ohne technische Details oder API-Spezifikationen – sondern mit **konkreten Zielen, Schritten und Ergebnissen**.
+Sie ist so aufgebaut, dass du sie **wie eine Reise** abarbeiten kannst – vom Start bis zum fertigen Produkt.
 
 ---
 
-## 🧭 Technologie-Stack
-
-| Ebene     | Technologie                                          | Beschreibung              |
-| ---------- | ---------------------------------------------------- | ------------------------- |
-| Frontend   | React + Leaflet.js                                   | Kartenanzeige & UI        |
-| Backend    | FastAPI (Python) oder Express (Node.js)              | Routing & Etappenlogik    |
-| Datenbank  | PostgreSQL + PostGIS                                 | Geodaten & Touren         |
-| APIs       | OpenRouteService, Overpass API, OpenElevation        | Routing, Orte, Höhen      |
-| Hosting    | Vercel (Frontend) + Render (Backend) + Supabase (DB) | Kostenloser Betrieb       |
-| Auth (opt.)| Firebase Auth oder Supabase Auth                     | Nutzer-Login              |
+# 🏍️ **MotoTourer – Entwicklungsfahrplan (von 0 bis Ziel)**
 
 ---
 
-## 📅 8-Wochen-Roadmap (MVP)
+## 🏁 **Phase 1 – Start & Vorbereitung (Woche 1)**
 
-### 🗓️ Phase 1 – Projektsetup & Grundlagen (Woche 1)
+**Ziel:** Projektumgebung steht, du kannst entwickeln.
 
-**Ziele:**
-- Entwicklungsumgebung & Repository aufsetzen  
-- Basisstruktur für Frontend & Backend erstellen  
+### 🔹 Aufgaben:
 
-**Aufgaben:**
-- [ ] Node.js / Python + VSCode installieren  
-- [ ] Git & GitHub Repository anlegen  
-- [ ] React + Leaflet Grundgerüst (`create-react-app`) erstellen  
-- [ ] FastAPI oder Express Grundgerüst erstellen  
-- [ ] Docker-Setup für PostgreSQL + PostGIS einrichten  
-- [ ] `.env`-Dateien & API-Keys (ORS, Firebase) vorbereiten  
+* Entwicklungsumgebung einrichten (VSCode, Node.js, GitHub).
+* Projektordner anlegen: `frontend/`, `backend/`, `database/`.
+* GitHub-Repo erstellen und verbinden.
+* Erste Testdatei anlegen („Hello MotoTourer!“ im Browser).
 
-**Ergebnis:**  
-Lokales Projekt startet mit „Hello World“ im Frontend & Backend.  
+### 🎯 Ergebnis:
+
+Du kannst lokal starten, der Code läuft und ist versioniert.
 
 ---
 
-### 🗓️ Phase 2 – Routing & API-Anbindung (Woche 2–3)
+## 🧭 **Phase 2 – Karte & Routing-Grundlagen (Woche 2–3)**
 
-**Ziele:**
-- Routing-Logik mit OpenRouteService  
-- Backend-API für Routenplanung  
-- Karte zeigt Strecke an  
+**Ziel:** Eine Karte zeigt eine Motorradroute von A nach B.
 
-**Aufgaben:**
-- [ ] Backend-Endpoint `/api/tour/plan` implementieren  
-- [ ] Request an ORS-API senden (z. B. `driving-curvature`)  
-- [ ] Geodaten (Polyline) speichern & zurückgeben  
-- [ ] Leaflet-Karte mit Routenanzeige im Frontend  
-- [ ] Marker für Start/Zielpunkte  
+### 🔹 Aufgaben:
 
-**Ergebnis:**  
-Karte zeigt Route von A → B mit Linienverlauf.  
+* Karte mit **OpenStreetMap** oder **Leaflet.js** einbinden.
+* Backend aufsetzen, das Start- und Zielkoordinaten verarbeitet.
+* Verbindung zur **OpenRouteService API** herstellen.
+* Route auf der Karte anzeigen (Linie + Marker).
+
+### 🎯 Ergebnis:
+
+Du siehst auf der Karte eine funktionierende Strecke von München nach Zürich.
 
 ---
 
-### 🗓️ Phase 3 – Etappenlogik (Woche 4)
+## 🏕️ **Phase 3 – Etappenplanung (Woche 4)**
 
-**Ziele:**
-- Automatische Aufteilung der Route in Tagesetappen  
-- Ermittlung von Städten als Etappenziele  
+**Ziel:** Die App teilt eine lange Strecke automatisch in Tagesetappen.
 
-**Aufgaben:**
-- [ ] Funktion `split_route_by_distance()` (z. B. alle 300 km)  
-- [ ] Overpass API-Integration (Städte innerhalb 5–10 km)  
-- [ ] Backend liefert Liste der Etappen zurück  
-- [ ] Frontend zeigt farblich getrennte Etappen  
+### 🔹 Aufgaben:
 
-**Ergebnis:**  
-App erstellt mehrtägige Tour mit Etappen-Markierungen.  
+* Funktion erstellen, die Route z. B. alle 300 km teilt.
+* Städte oder Orte entlang der Route automatisch finden.
+* Etappen farblich unterschiedlich auf der Karte darstellen.
 
----
+### 🎯 Ergebnis:
 
-### 🗓️ Phase 4 – Etappenansicht & Detailseite (Woche 5–6)
-
-**Ziele:**
-- Etappenliste und Detailansicht mit Höhenprofil  
-- Integration von Unterkünften & POIs  
-
-**Aufgaben:**
-- [ ] OpenElevation API für Höhenprofil  
-- [ ] Overpass-Abfrage für Hotels, Campingplätze, Tankstellen  
-- [ ] Frontend-Tabs „Etappenübersicht“ & „Details“  
-- [ ] Höhenprofil-Diagramm (Chart.js oder Recharts)  
-- [ ] POI-Marker auf Karte  
-
-**Ergebnis:**  
-Nutzer sieht Etappen, Höhenprofil und POIs je Tag.  
+Die App berechnet 2–4 Tagesetappen und zeigt sie klar getrennt auf der Karte an.
 
 ---
 
-### 🗓️ Phase 5 – Speicherung & Export (Woche 7)
+## 🏔️ **Phase 4 – Etappen-Details (Woche 5–6)**
 
-**Ziele:**
-- Speicherung & GPX-Export von Touren  
+**Ziel:** Jede Etappe bekommt mehr Tiefe (Daten & Anzeige).
 
-**Aufgaben:**
-- [ ] Tabellen für Tour, Etappe, POIs in PostgreSQL  
-- [ ] Endpoints `/api/tour/save` & `/api/tour/:id/gpx`  
-- [ ] Frontend-Buttons: „Tour speichern“ & „GPX exportieren“  
-- [ ] GPX-Generator (XML aus Koordinaten)  
+### 🔹 Aufgaben:
 
-**Ergebnis:**  
-Touren können gespeichert und als GPX exportiert werden.  
+* Höhenprofil berechnen (OpenElevation API).
+* Orte entlang der Etappe anzeigen (Hotels, Tankstellen, Campingplätze).
+* Eine einfache Etappenübersicht im UI anzeigen:
 
----
+  * Tag 1: München → Ulm
+  * Tag 2: Ulm → Zürich
+* Option: „Details anzeigen“-Button mit Höhenprofil und POIs.
 
-### 🗓️ Phase 6 – Hosting & Abschluss (Woche 8)
+### 🎯 Ergebnis:
 
-**Ziele:**
-- App deployen und Dokumentation fertigstellen  
-
-**Aufgaben:**
-- [ ] Frontend → Vercel  
-- [ ] Backend → Render  
-- [ ] Datenbank → Supabase oder Neon  
-- [ ] Domain + SSL einrichten  
-- [ ] README, API-Doku, Setup-Guide finalisieren  
-
-**Ergebnis:**  
-MotoTourer läuft öffentlich mit dokumentiertem MVP.  
+Jede Etappe hat jetzt Infos, Höhenprofil und interessante Orte.
 
 ---
 
-## 🧮 Milestones
+## 💾 **Phase 5 – Tour speichern & exportieren (Woche 7)**
 
-| Milestone | Beschreibung                                  | Zielwoche |
-| ---------- | --------------------------------------------- | ---------- |
-| M1 | Projektstruktur steht, lokale Umgebung läuft         | 1 |
-| M2 | Routing funktioniert, erste Karte mit Strecke        | 3 |
-| M3 | Etappenlogik mit Städten funktioniert                | 4 |
-| M4 | Etappen-Detailansicht mit Höhenprofil                | 6 |
-| M5 | Speicherung & Export (GPX)                           | 7 |
-| M6 | App online & dokumentiert                            | 8 |
+**Ziel:** Tour kann gespeichert oder exportiert werden.
 
----
+### 🔹 Aufgaben:
 
-## 📘 Empfohlene Dokumentation
+* Eine kleine Datenbank einrichten (z. B. Supabase).
+* Möglichkeit: „Tour speichern“ mit Name & Datum.
+* GPX-Datei-Export einbauen, damit Nutzer Touren auf Navi/Handy laden können.
 
-| Datei | Inhalt |
-| ------ | ------- |
-| `architecture.md` | Systemarchitektur (Frontend-Backend-DB) |
-| `api_spec.md` | Endpunkte, Parameter, Beispiel-Responses |
-| `database_schema.md` | Tabellen, Relationen, SQL-Beispiele |
-| `roadmap.md` | Diese Entwicklungs-Roadmap |
-| `setup_guide.md` | Installationsanleitung & lokale Entwicklung |
+### 🎯 Ergebnis:
+
+Touren können lokal oder in der Cloud gespeichert und exportiert werden.
 
 ---
 
-## 🧩 Erweiterungsideen (nach MVP)
+## 🌍 **Phase 6 – Online gehen (Woche 8)**
 
-| Feature | Beschreibung |
-| -------- | ------------- |
-| 🔧 Benutzerkonten | Login, gespeicherte Touren pro User |
-| 🌦️ Wetter-API | Wetterprognose pro Etappe |
-| 🧭 Gruppentouren | Gemeinsame Tourplanung & Teilen |
-| 📍 Community-Karten | Biker-Treffpunkte, Sehenswürdigkeiten |
-| 🛰️ Offlinekarten | MapLibre-Integration (Premium-Modus) |
+**Ziel:** MotoTourer ist online verfügbar.
+
+### 🔹 Aufgaben:
+
+* Frontend auf **Vercel** hochladen.
+* Backend auf **Render** deployen.
+* Datenbank verbinden (Supabase oder Neon).
+* Domain und SSL einrichten.
+* Kurze Dokumentation schreiben (Setup + Funktionen).
+
+### 🎯 Ergebnis:
+
+Deine App läuft öffentlich unter einer eigenen Domain, z. B. **mototourer.app**
 
 ---
 
-**Letztes Update:** `2025-11-01`  
-Autor: *MotoTourer Projektplanung (ChatGPT-Assist)*  
-Version: `v1.0-MVP`
+## 🏆 **Endziel (nach 8 Wochen)**
+
+✅ Voll funktionsfähiges **MVP (Minimum Viable Product)**:
+
+* Strecke planen → Etappen berechnen → Karte anzeigen
+* Etappen-Infos & Höhenprofil sichtbar
+* Tour speichern & exportieren
+* App online & nutzbar
+
+---
+
+## 🚀 **Optionale Erweiterungen (nach dem MVP)**
+
+| Erweiterung       | Beschreibung                              |
+| ----------------- | ----------------------------------------- |
+| 👤 Benutzer-Login | Eigene Touren speichern & wieder aufrufen |
+| 🌦️ Wetteranzeige | Wetter pro Etappe                         |
+| 🧭 Gruppentouren  | Gemeinsame Planung mit Freunden           |
+| 📱 Mobile Version | Optimierte Ansicht für Smartphone         |
+| 🛰️ Offlinekarten | MapLibre für Nutzung ohne Internet        |
+
+---
+
+Wenn du magst, kann ich dir diesen Plan **noch weiter vereinfachen zu einer „To-Do-Liste mit Meilensteinen“** – also Schritt-für-Schritt in Stichpunkten („Tag 1: Setup“, „Tag 2: Karte einbinden“ … bis „Tag 30: Online stellen“).
+Willst du das so?
