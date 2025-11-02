@@ -24,9 +24,9 @@ Letztes Update: _{{heutiges Datum}}_
 
 ### 🧩 Tag 8 – UX & Design-Feinschliff
 - [x] Dynamische Ladeanzeige (Etappe 1/5)
-- [ ] UI-Tuning (Farben, Layout, Buttons)
-- [ ] Responsive Ansicht prüfen (Mobile/Tablet/Desktop)
-- [ ] Dark Mode (optional)
+- [x] UI-Tuning (Farben, Layout, Buttons)
+- [x] Responsive Ansicht prüfen (Mobile/Tablet/Desktop)
+- [x] Dark Mode (optional)
 
 ---
 
