@@ -60,7 +60,7 @@ jobs:
           import threading
 
           # Server starten
-          p = subprocess.Popen(["uvicorn", "main:app", "--port", "8000"])
+          p = subprocess.Popen(["python", "-m", "uvicorn", "main:app", "--port", "8000"])
           time.sleep(5)
 
           # Test-Request
