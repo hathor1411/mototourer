@@ -1,140 +1,103 @@
-Alles klar ✅
-Hier bekommst du jetzt eine **vereinfachte, klare Roadmap** für **MotoTourer**,
-ohne technische Details oder API-Spezifikationen – sondern mit **konkreten Zielen, Schritten und Ergebnissen**.
-Sie ist so aufgebaut, dass du sie **wie eine Reise** abarbeiten kannst – vom Start bis zum fertigen Produkt.
+# 🏍️ MotoTourer – Entwicklungs-Roadmap
+
+Diese Roadmap beschreibt die nächsten Ausbauschritte von **MotoTourer**, 
+beginnend ab **Tag 9** (nach erfolgreicher Implementierung der Höhenprofile).
 
 ---
 
-# 🏍️ **MotoTourer – Entwicklungsfahrplan (von 0 bis Ziel)**
+## 🚦 Aktueller Stand (Tag 8)
+✅ Etappen-Berechnung über OpenRouteService  
+✅ Höhenprofile für alle Etappen (mit ORS Elevation)  
+✅ Frontend-Integration mit Karte und Diagrammen  
+✅ Stabile Kommunikation Backend ↔ Frontend  
 
 ---
 
-## 🏁 **Phase 1 – Start & Vorbereitung (Woche 1)**
+## 🗓️ Roadmap: Tag 9 – 14
 
-**Ziel:** Projektumgebung steht, du kannst entwickeln.
+### 🧭 **Tag 9 – Etappen-Statistiken & Höhenmeter**
+**Ziel:** Jede Etappe zeigt Distanz & Höhenmeter im UI.  
+**Aufgaben:**
+- Backend: `/stage_info` um `elevation_gain_m` + `distance_km` erweitern  
+- Frontend: Anzeige unter jeder Etappe (`+1234 m Höhengewinn`)  
+- Optionale Tooltip-Info auf der Karte  
 
-### 🔹 Aufgaben:
-
-* Entwicklungsumgebung einrichten (VSCode, Node.js, GitHub).
-* Projektordner anlegen: `frontend/`, `backend/`, `database/`.
-* GitHub-Repo erstellen und verbinden.
-* Erste Testdatei anlegen („Hello MotoTourer!“ im Browser).
-
-### 🎯 Ergebnis:
-
-Du kannst lokal starten, der Code läuft und ist versioniert.
+**Ergebnis:** Etappen enthalten Distanz und Höhenprofil – bessere Übersicht.
 
 ---
 
-## 🧭 **Phase 2 – Karte & Routing-Grundlagen (Woche 2–3)**
+### 📊 **Tag 10 – Höhenprofil-Diagramm erweitern**
+**Ziel:** Interaktives Diagramm mit D3 / Recharts.  
+**Aufgaben:**
+- `ElevationChart.jsx`: x = Distanz, y = Höhe  
+- Hover zeigt Etappen-Infos (km + Höhenmeter)  
+- Farbverlauf → grün = tief, rot = hoch  
 
-**Ziel:** Eine Karte zeigt eine Motorradroute von A nach B.
-
-### 🔹 Aufgaben:
-
-* Karte mit **OpenStreetMap** oder **Leaflet.js** einbinden.
-* Backend aufsetzen, das Start- und Zielkoordinaten verarbeitet.
-* Verbindung zur **OpenRouteService API** herstellen.
-* Route auf der Karte anzeigen (Linie + Marker).
-
-### 🎯 Ergebnis:
-
-Du siehst auf der Karte eine funktionierende Strecke von München nach Zürich.
+**Ergebnis:** Präzise, visuell ansprechende Höhenkurven je Etappe.
 
 ---
 
-## 🏕️ **Phase 3 – Etappenplanung (Woche 4)**
+### 🧱 **Tag 11 – Backend-Struktur & API-Cleanup**
+**Ziel:** Klare API-Architektur für zukünftige Erweiterungen.  
+**Aufgaben:**
+- Routen `/route`, `/stages`, `/elevation` → in `routes/`-Ordner auslagern  
+- `main.py` wird schlank  
+- Neue Datei `config.py` für API-Keys & Einstellungen  
 
-**Ziel:** Die App teilt eine lange Strecke automatisch in Tagesetappen.
-
-### 🔹 Aufgaben:
-
-* Funktion erstellen, die Route z. B. alle 300 km teilt.
-* Städte oder Orte entlang der Route automatisch finden.
-* Etappen farblich unterschiedlich auf der Karte darstellen.
-
-### 🎯 Ergebnis:
-
-Die App berechnet 2–4 Tagesetappen und zeigt sie klar getrennt auf der Karte an.
+**Ergebnis:** Saubere Code-Basis – bereit für Skalierung.
 
 ---
 
-## 🏔️ **Phase 4 – Etappen-Details (Woche 5–6)**
+### 🗂️ **Tag 12 – Projektspeicherung**
+**Ziel:** Routen & Etappen lokal oder in DB speichern.  
+**Aufgaben:**
+- Backend: SQLite- oder JSON-Speicherung (Name, Datum, Punkte)  
+- Frontend: Buttons **„Tour speichern“** / **„Tour laden“**  
+- Optional: Speicherung im LocalStorage  
 
-**Ziel:** Jede Etappe bekommt mehr Tiefe (Daten & Anzeige).
-
-### 🔹 Aufgaben:
-
-* Höhenprofil berechnen (OpenElevation API).
-* Orte entlang der Etappe anzeigen (Hotels, Tankstellen, Campingplätze).
-* Eine einfache Etappenübersicht im UI anzeigen:
-
-  * Tag 1: München → Ulm
-  * Tag 2: Ulm → Zürich
-* Option: „Details anzeigen“-Button mit Höhenprofil und POIs.
-
-### 🎯 Ergebnis:
-
-Jede Etappe hat jetzt Infos, Höhenprofil und interessante Orte.
+**Ergebnis:** Tourdaten bleiben dauerhaft erhalten.
 
 ---
 
-## 💾 **Phase 5 – Tour speichern & exportieren (Woche 7)**
+### 📍 **Tag 13 – UI / UX-Verbesserung**
+**Ziel:** Mehr Übersicht und besseres Benutzererlebnis.  
+**Aufgaben:**
+- Ladeanimation bei API-Requests  
+- Farbige Marker (Start, Zwischenstopp, Ziel)  
+- Hover-Highlight → Etappe auf Karte hervorheben  
+- Responsives Layout für Desktop & Tablet  
 
-**Ziel:** Tour kann gespeichert oder exportiert werden.
-
-### 🔹 Aufgaben:
-
-* Eine kleine Datenbank einrichten (z. B. Supabase).
-* Möglichkeit: „Tour speichern“ mit Name & Datum.
-* GPX-Datei-Export einbauen, damit Nutzer Touren auf Navi/Handy laden können.
-
-### 🎯 Ergebnis:
-
-Touren können lokal oder in der Cloud gespeichert und exportiert werden.
+**Ergebnis:** Professionelle, intuitive Oberfläche.
 
 ---
 
-## 🌍 **Phase 6 – Online gehen (Woche 8)**
+### ☁️ **Tag 14 – Deployment-Vorbereitung**
+**Ziel:** App bereit für Online-Hosting.  
+**Aufgaben:**
+- Backend: Dockerfile + Gunicorn + Uvicorn  
+- Frontend: `npm run build` (Vite)  
+- GitHub Actions für automatischen Build & Test  
 
-**Ziel:** MotoTourer ist online verfügbar.
-
-### 🔹 Aufgaben:
-
-* Frontend auf **Vercel** hochladen.
-* Backend auf **Render** deployen.
-* Datenbank verbinden (Supabase oder Neon).
-* Domain und SSL einrichten.
-* Kurze Dokumentation schreiben (Setup + Funktionen).
-
-### 🎯 Ergebnis:
-
-Deine App läuft öffentlich unter einer eigenen Domain, z. B. **mototourer.app**
+**Ergebnis:** MotoTourer kann auf Render, Railway oder Vercel deployt werden.
 
 ---
 
-## 🏆 **Endziel (nach 8 Wochen)**
-
-✅ Voll funktionsfähiges **MVP (Minimum Viable Product)**:
-
-* Strecke planen → Etappen berechnen → Karte anzeigen
-* Etappen-Infos & Höhenprofil sichtbar
-* Tour speichern & exportieren
-* App online & nutzbar
+## 🚀 Bonus (Tag 15 +)
+- Benutzer-Login / Cloud-Sync (z. B. Supabase)  
+- Routenbearbeitung direkt auf Karte (Drag & Drop)  
+- Export als GPX / KML  
+- Dark Mode / Theme-Switcher  
 
 ---
 
-## 🚀 **Optionale Erweiterungen (nach dem MVP)**
-
-| Erweiterung       | Beschreibung                              |
-| ----------------- | ----------------------------------------- |
-| 👤 Benutzer-Login | Eigene Touren speichern & wieder aufrufen |
-| 🌦️ Wetteranzeige | Wetter pro Etappe                         |
-| 🧭 Gruppentouren  | Gemeinsame Planung mit Freunden           |
-| 📱 Mobile Version | Optimierte Ansicht für Smartphone         |
-| 🛰️ Offlinekarten | MapLibre für Nutzung ohne Internet        |
+## 🧩 Hinweise
+- Jede Tagesetappe entspricht ca. 1 – 2 Arbeitsstunden.  
+- Nach jedem Tag: `git commit` + `git tag` (`v0.9`, `v1.0`, …)  
+- Code dokumentieren → `README.md` aktuell halten.  
 
 ---
 
-Wenn du magst, kann ich dir diesen Plan **noch weiter vereinfachen zu einer „To-Do-Liste mit Meilensteinen“** – also Schritt-für-Schritt in Stichpunkten („Tag 1: Setup“, „Tag 2: Karte einbinden“ … bis „Tag 30: Online stellen“).
-Willst du das so?
+**Letztes Update:** _Tag 8 – Höhenprofile erfolgreich integriert_  
+**Nächster Schritt:** _Tag 9 – Etappen-Statistiken & Höhenmeter_
+
+---
