@@ -1,19 +1,13 @@
-import { useEffect, useState } from "react";
+import MapView from "./components/MapView";
 
 export default function App() {
-  const [message, setMessage] = useState("Lade...");
-
-  useEffect(() => {
-    fetch("http://localhost:8000/ping")
-      .then(res => res.json())
-      .then(data => setMessage(data.message))
-      .catch(() => setMessage("Fehler bei der Verbindung 😢"));
-  }, []);
-
   return (
-    <div style={{ textAlign: "center", marginTop: "3rem" }}>
-      <h1>MotoTourer 🏍️</h1>
-      <p>Backend-Verbindung: <strong>{message}</strong></p>
+    <div>
+      <header style={{ textAlign: "center", padding: "1rem" }}>
+        <h1>MotoTourer 🏍️</h1>
+        <p>Deine Motorrad-Routenkarte</p>
+      </header>
+      <MapView />
     </div>
   );
 }
