@@ -1,77 +1,79 @@
-name: 🚀 Build & Test MotoTourer
+name: Build & Test MotoTourer
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   pull_request:
+    branches: [ "main" ]
 
 jobs:
-  build:
+  backend:
+    name: 🧠 Backend (FastAPI)
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [20]
-        python-version: [3.11]
-
     steps:
-      - name: 📥 Checkout Repository
+      - name: 🧾 Checkout Repository
         uses: actions/checkout@v4
 
-      # ---------- Frontend ----------
-      - name: 🧩 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: 📦 Install Frontend Dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: 🧱 Build Frontend
-        working-directory: frontend
-        run: npm run build
-
-      # ---------- Backend ----------
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
 
-      - name: Install backend dependencies
+      - name: 📦 Install backend dependencies
         working-directory: backend
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/python -m pip install -r requirements.txt
 
-      - name: 🧪 Backend Syntax Check
-        working-directory: backend
-        run: python -m compileall .
-
-      # ---------- Smoke Test ----------
-      - name: 🧠 Check Backend API Startup
+      - name: 🚀 Test backend startup
         working-directory: backend
         run: |
-          source .venv/bin/activate
-          python - << 'EOF'
+          .venv/bin/python - << 'EOF'
           import subprocess, time, requests
-          import threading
 
-          # Server starten
-          p = subprocess.Popen(["python", "-m", "uvicorn", "main:app", "--port", "8000"])
-          time.sleep(5)
+          print("🚀 Starte Uvicorn-Testserver...")
+          p = subprocess.Popen([".venv/bin/python", "-m", "uvicorn", "main:app", "--port", "8000"])
+          time.sleep(6)
 
-          # Test-Request
           try:
               r = requests.get("http://127.0.0.1:8000/ping")
-              print("✅ Backend antwortet:", r.json())
+              print("✅ Backend antwortet korrekt:", r.json())
           except Exception as e:
               print("❌ Backend-Test fehlgeschlagen:", e)
-
-          p.terminate()
+              raise SystemExit(1)
+          finally:
+              p.terminate()
           EOF
 
-      - name: ✅ Build & Test erfolgreich
-        run: echo "🎉 MotoTourer erfolgreich gebaut & getestet!"
+  frontend:
+    name: 💻 Frontend (React)
+    runs-on: ubuntu-latest
+    needs: backend
+
+    steps:
+      - name: 🧾 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 📦 Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: 🧪 Build React App
+        working-directory: frontend
+        run: npm run build
+
+      - name: ✅ Verify Build Output
+        working-directory: frontend
+        run: |
+          if [ ! -d "dist" ] && [ ! -d "build" ]; then
+            echo "❌ Kein Build-Ordner gefunden!"
+            exit 1
+          fi
+          echo "✅ Build erfolgreich erstellt."
