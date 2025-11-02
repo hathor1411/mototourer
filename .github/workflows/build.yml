@@ -78,18 +78,23 @@ jobs:
           echo "✅ Build erfolgreich erstellt."
 
       - name: 🧪 Teste FastAPI Backend
+        working-directory: backend
         run: |
           echo "🚀 Starte Uvicorn-Testserver..."
-          python -m uvicorn main:app --port 8000 &
+          nohup python -m uvicorn main:app --port 8000 &
+    
+          echo "⏳ Warte 5 Sekunden, bis der Server läuft..."
           sleep 5
-
+    
           echo "🔍 Sende Testanfrage an /ping ..."
           RESPONSE=$(curl -s http://127.0.0.1:8000/ping || echo "error")
-
+    
           if [[ "$RESPONSE" == *"pong"* ]]; then
             echo "✅ Backend antwortet korrekt: $RESPONSE"
           else
             echo "❌ Backend-Test fehlgeschlagen: $RESPONSE"
             exit 1
           fi
+
+
 
