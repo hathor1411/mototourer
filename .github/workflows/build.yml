@@ -1,0 +1,77 @@
+name: 🚀 Build & Test MotoTourer
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20]
+        python-version: [3.11]
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      # ---------- Frontend ----------
+      - name: 🧩 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: 📦 Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: 🧱 Build Frontend
+        working-directory: frontend
+        run: npm run build
+
+      # ---------- Backend ----------
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 🔧 Install Backend Dependencies
+        working-directory: backend
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: 🧪 Backend Syntax Check
+        working-directory: backend
+        run: python -m compileall .
+
+      # ---------- Smoke Test ----------
+      - name: 🧠 Check Backend API Startup
+        working-directory: backend
+        run: |
+          source .venv/bin/activate
+          python - << 'EOF'
+          import subprocess, time, requests
+          import threading
+
+          # Server starten
+          p = subprocess.Popen(["uvicorn", "main:app", "--port", "8000"])
+          time.sleep(5)
+
+          # Test-Request
+          try:
+              r = requests.get("http://127.0.0.1:8000/ping")
+              print("✅ Backend antwortet:", r.json())
+          except Exception as e:
+              print("❌ Backend-Test fehlgeschlagen:", e)
+
+          p.terminate()
+          EOF
+
+      - name: ✅ Build & Test erfolgreich
+        run: echo "🎉 MotoTourer erfolgreich gebaut & getestet!"
