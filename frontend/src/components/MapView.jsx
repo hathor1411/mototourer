@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Polyline, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import ElevationChart from "./ElevationChart";
 
@@ -10,6 +10,9 @@ export default function MapView() {
   const [totalStages, setTotalStages] = useState(0);
   const [error, setError] = useState(null);
   const [darkMode, setDarkMode] = useState(false); // ✅ gefehlt!
+  const [activeStage, setActiveStage] = useState(null);
+  const [popupPos, setPopupPos] = useState(null);
+
 
   useEffect(() => {
     async function loadStages() {
@@ -65,6 +68,21 @@ export default function MapView() {
     document.documentElement.classList.toggle("dark");
     setDarkMode((prev) => !prev);
   };
+
+  function MapFocus({ stage }) {
+    const map = useMap();
+
+    useEffect(() => {
+      if (!stage || !stage.points || stage.points.length === 0) return;
+
+      // Berechne die Bounding-Box der Etappe
+      const bounds = stage.points.map(p => [p[0], p[1]]);
+      map.fitBounds(bounds, { padding: [50, 50] }); // ✅ Zoom auf Etappe
+    }, [stage, map]);
+
+    return null;
+  }
+
 
   const colors = ["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"];
   const start = [48.1351, 11.5820];
@@ -220,31 +238,63 @@ export default function MapView() {
             boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
           }}
         >
-          <MapContainer
-            center={[48.1351, 11.5820]}
-            zoom={6}
-            style={{ height: "100%", width: "100%" }}
-          >
+          <MapContainer center={start} zoom={6} style={{ height: "100%", width: "100%" }}>
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
 
+            {/* 🔥 Karte fokussiert automatisch auf aktive Etappe */}
+            {activeStage !== null && <MapFocus stage={stages[activeStage]} />}
+
             {stages.map((stage, i) => (
               <Polyline
-                key={i}
+                key={`${i}-${activeStage === i}`} // 🔥 erzwingt Neuzeichnung
                 positions={stage.points}
-                color={["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"][i % 5]}
-                weight={5}
+                color={i === activeStage ? "#ffcc00" : colors[i % colors.length]} // ✅ aktiv = gold
+                weight={i === activeStage ? 8 : 5}
+                opacity={i === activeStage ? 1 : 0.7}
+                eventHandlers={{
+                  click: (e) => {
+                    setActiveStage(i);
+                    setPopupPos(e.latlng);
+                  }
+                }}
               />
             ))}
+          {popupPos && activeStage !== null && (
+          <Popup position={popupPos}>
+            <div style={{ minWidth: "180px" }}>
+              <strong>Etappe {activeStage + 1}</strong>
+              <br />
+              🏁 {stages[activeStage].start_location} → {stages[activeStage].end_location}
+              <br />
+              📏 {stages[activeStage].distance_km?.toFixed(1)} km
+              <br />
+              ⛰️ +{stages[activeStage].elevation_gain_m || 0} m
+            </div>
+          </Popup>
+          )}
+          {/* Start- & Ziel-Marker für jede Etappe */}
+          {stages.map((s, i) => (
+            <div key={`markers-${i}`}>
+              <Marker position={s.points[0]}>
+                <Popup>
+                  🏁 <strong>Start Etappe {i + 1}</strong>
+                  <br />
+                  {s.start_location || "Unbekannt"}
+                </Popup>
+              </Marker>
 
-            <Marker position={[48.1351, 11.5820]}>
-              <Popup>Start: München</Popup>
-            </Marker>
-            <Marker position={[57.5886, 9.9592]}>
-              <Popup>Ziel: Hirtshals</Popup>
-            </Marker>
+              <Marker position={s.points[s.points.length - 1]}>
+                <Popup>
+                  🎯 <strong>Ziel Etappe {i + 1}</strong>
+                  <br />
+                  {s.end_location || "Unbekannt"}
+                </Popup>
+              </Marker>
+            </div>
+          ))}
           </MapContainer>
         </div>
 
@@ -271,11 +321,15 @@ export default function MapView() {
               {stages.map((s, i) => (
                 <li
                   key={i}
+                  onClick={() => setActiveStage(i)} // ✅ klickbare Etappe
                   style={{
-                    color: ["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"][i % 5],
-                    marginBottom: "1rem",
-                    borderBottom: "1px solid #ccc",
+                    color: colors[i % colors.length],
+                    marginBottom: "1.5rem",
+                    cursor: "pointer",
+                    borderBottom: activeStage === i ? "2px solid #0077ff" : "1px solid #ccc",
                     paddingBottom: "0.5rem",
+                    backgroundColor: activeStage === i ? "rgba(0, 119, 255, 0.1)" : "transparent",
+                    borderRadius: "6px",
                   }}
                 >
                   <strong>Etappe {i + 1}</strong><br />
