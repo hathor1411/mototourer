@@ -48,7 +48,7 @@ Letztes Update: _{{heutiges Datum}}_
 
 ### ☁️ Tag 11 – Backend-Optimierung
 - [x] Fehlerbehandlung verbessert
-- [ ] Cache-System für Geocoding-Ergebnisse
+- [x] Cache-System für Geocoding-Ergebnisse
 - [ ] Logging (z. B. `loguru`)
 - [ ] Parallele Requests mit `aiohttp` (Performance)
 
