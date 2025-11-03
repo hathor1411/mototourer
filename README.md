@@ -39,10 +39,10 @@ Letztes Update: _{{heutiges Datum}}_
 ---
 
 ### 💾 Tag 10 – Speicherung & Session
-- [ ] Tour in LocalStorage speichern
-- [ ] „Tour laden / löschen“ Buttons
-- [ ] Export/Import als JSON-Datei
-- [ ] (Optional) API-Endpunkt für gespeicherte Touren
+- [x] Tour in LocalStorage speichern
+- [x] „Tour laden / löschen“ Buttons
+- [x] Export/Import als JSON-Datei & GPX-Datei
+- [x] (Optional) API-Endpunkt für gespeicherte Touren
 
 ---
 
