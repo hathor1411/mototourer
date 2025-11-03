@@ -31,10 +31,10 @@ Letztes Update: _{{heutiges Datum}}_
 ---
 
 ### 🗺️ Tag 9 – Etappen-Interaktion
-- [ ] Klick auf Etappe → visuelles Highlight
-- [ ] Popup mit Details (Start, Ziel, Distanz, Höhenmeter, Dauer)
-- [ ] Auswahlfeld „aktive Etappe“
-- [ ] Marker-Beschriftung (Start/Ziel)
+- [x] Klick auf Etappe → visuelles Highlight
+- [x] Popup mit Details (Start, Ziel, Distanz, Höhenmeter, Dauer)
+- [x] Auswahlfeld „aktive Etappe“
+- [x] Marker-Beschriftung (Start/Ziel)
 
 ---
 
