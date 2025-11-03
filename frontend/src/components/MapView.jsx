@@ -13,11 +13,67 @@ export default function MapView() {
   const [activeStage, setActiveStage] = useState(null);
   const [popupPos, setPopupPos] = useState(null);
 
+  // 🔁 Tour beim Start laden (falls vorhanden)
+  useEffect(() => {
+    const saved = localStorage.getItem("mototourer_tour");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // 🧩 Prüfen, ob Details fehlen
+          const missingDetails = parsed.some(
+            s => !s.start_location || !s.end_location
+          );
+          if (!missingDetails) {
+            console.log("✅ Vollständige Tour aus LocalStorage geladen.");
+            setStages(parsed);
+            setLoading(false);
+            return;
+          } else {
+            console.log("ℹ️ Gespeicherte Tour ist unvollständig – lade Details neu.");
+          }
+        }
+      } catch (e) {
+        console.warn("⚠️ Fehler beim Laden der gespeicherten Tour:", e);
+      }
+    }
+  }, []);
+
+  // 💾 Tour automatisch speichern, wenn sich Etappen ändern
+  useEffect(() => {
+    if (Array.isArray(stages) && stages.length > 0) {
+      // 🧩 Nur speichern, wenn die Etappen wirklich vollständig sind
+      const complete = stages.every(s => s.start_location && s.end_location);
+      if (complete) {
+        localStorage.setItem("mototourer_tour", JSON.stringify(stages));
+        console.log("💾 Vollständige Tour gespeichert (mit Ortsnamen).");
+      } else {
+        console.log("⚠️ Noch unvollständige Etappen – wird nicht gespeichert.");
+      }
+    }
+  }, [stages]);
 
   useEffect(() => {
     async function loadStages() {
+      // 📦 Zuerst prüfen, ob eine gespeicherte Tour existiert
+      const saved = localStorage.getItem("mototourer_tour");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && parsed.length > 0) {
+            console.log("✅ Gespeicherte Tour aus LocalStorage geladen.");
+            setStages(parsed);
+            setLoading(false);
+            return; // ❗ kein API-Aufruf mehr nötig
+          }
+        } catch (e) {
+          console.warn("⚠️ Fehler beim Laden der gespeicherten Tour:", e);
+        }
+      }
+
+      // 🔄 Wenn keine gespeicherte Tour → neue Tour generieren
       try {
-        console.log("🔄 Lade Etappen...");
+        console.log("🔄 Lade neue Etappen von API...");
         const res = await fetch("http://localhost:8000/stages");
         const data = await res.json();
 
@@ -25,34 +81,10 @@ export default function MapView() {
           throw new Error("Keine Etappen gefunden.");
         }
 
-        setTotalStages(data.stages.length);
-        const detailedStages = [];
-
-        for (let i = 0; i < data.stages.length; i++) {
-          const stage = data.stages[i];
-          setCurrentStage(i + 1);
-
-          try {
-            const resp = await fetch("http://localhost:8000/stage_details", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(stage),
-            });
-            const details = await resp.json();
-            detailedStages.push({ ...stage, ...details });
-          } catch (err) {
-            console.warn("⚠️ Fehler bei Etappendetails:", err);
-            detailedStages.push({
-              ...stage,
-              start_location: "Unbekannt",
-              end_location: "Unbekannt",
-              elevation_gain_m: 0,
-            });
-          }
-        }
-
-        setStages(detailedStages);
-        console.log("✅ Alle Etappen erfolgreich geladen.");
+        setStages(data.stages);
+        setLoading(false);
+        localStorage.setItem("mototourer_tour", JSON.stringify(data.stages)); // 💾 gleich speichern
+        console.log("💾 Tour im LocalStorage gespeichert.");
       } catch (err) {
         console.error("💥 Fehler beim Laden der Etappen:", err);
         setError(err.message);
@@ -63,6 +95,7 @@ export default function MapView() {
 
     loadStages();
   }, []);
+
 
   const toggleDarkMode = () => {
     document.documentElement.classList.toggle("dark");
@@ -82,6 +115,65 @@ export default function MapView() {
 
     return null;
   }
+
+  const handleRecalculate = async () => {
+    try {
+      setLoading(true);
+      setStages([]);
+      setCurrentStage(0);       // ✅ Fortschritt zurücksetzen
+      setTotalStages(0);        // ✅ Fortschritt zurücksetzen
+      localStorage.removeItem("mototourer_tour");
+      setError(null);
+      console.log("🔄 Tour wird neu berechnet...");
+
+      // 🗺️ Neue Etappen abrufen
+      const res = await fetch("http://localhost:8000/stages");
+      const data = await res.json();
+
+      if (!data.stages || data.stages.length === 0) {
+        throw new Error("Keine Etappen gefunden.");
+      }
+
+      setTotalStages(data.stages.length); // ✅ Gesamtzahl der Etappen festlegen
+
+      const detailedStages = [];
+
+      for (let i = 0; i < data.stages.length; i++) {
+        const stage = data.stages[i];
+        setCurrentStage(i + 1); // ✅ Fortschritt aktualisieren
+
+        try {
+          const resp = await fetch("http://localhost:8000/stage_details", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(stage),
+          });
+
+          const details = await resp.json();
+          detailedStages.push({ ...stage, ...details });
+        } catch (err) {
+          console.warn("⚠️ Fehler bei Etappendetails:", err);
+          detailedStages.push({
+            ...stage,
+            start_location: "Unbekannt",
+            end_location: "Unbekannt",
+            elevation_gain_m: 0,
+          });
+        }
+      }
+
+      // ✅ Neue Etappen setzen + speichern
+      setStages(detailedStages);
+      localStorage.setItem("mototourer_tour", JSON.stringify(detailedStages));
+      console.log("✅ Neue Tour erfolgreich geladen und gespeichert.");
+    } catch (err) {
+      console.error("💥 Fehler beim Neuberechnen:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
 
   const colors = ["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"];
@@ -162,59 +254,141 @@ export default function MapView() {
       )}
 
 
-      {/* --- Button-Leiste (zentriert + responsive) --- */}
-      <div className="button-bar flex flex-wrap justify-center gap-4 mb-6 px-6 py-4 
-                      bg-white dark:bg-gray-800 shadow-md rounded-xl 
-                      w-full max-w-7xl mx-auto box-border transition-all">
+      {/* --- Modernisierte Toolbar --- */}
+      <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mb-5 px-3 py-3 
+                      bg-white dark:bg-gray-800 shadow-md rounded-lg w-full 
+                      max-w-6xl mx-auto transition-all">
+
+        {/* 🗺️ Neu berechnen */}
         <button
           disabled={loading}
-          onClick={() => window.location.reload()}
-          className={`px-5 py-2.5 rounded-lg font-medium text-white transition ${
-            loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
-          }`}
+          onClick={handleRecalculate}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white transition 
+            ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}`}
         >
-          🗺️ Tour neu berechnen
+          <span>🗺️</span> <span className="hidden sm:inline">Neu berechnen</span>
         </button>
 
+        {/* 💾 Speichern */}
         <button
           disabled={loading || stages.length === 0}
-          onClick={() =>
-            localStorage.setItem("mototourer_tour", JSON.stringify(stages))
-          }
-          className={`px-5 py-2.5 rounded-lg font-medium text-white transition ${
-            stages.length === 0
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-green-600 hover:bg-green-700"
-          }`}
+          onClick={() => {
+            localStorage.setItem("mototourer_tour", JSON.stringify(stages));
+            alert("💾 Tour gespeichert!");
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white transition 
+            ${stages.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}
         >
-          💾 Tour speichern
+          <span>💾</span> <span className="hidden sm:inline">Speichern</span>
         </button>
 
+        {/* 📂 Laden */}
+        <button
+          onClick={() => {
+            const saved = localStorage.getItem("mototourer_tour");
+            if (saved) {
+              setStages(JSON.parse(saved));
+              alert("📂 Tour geladen!");
+            } else {
+              alert("⚠️ Keine gespeicherte Tour gefunden!");
+            }
+          }}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition"
+        >
+          <span>📂</span> <span className="hidden sm:inline">Laden</span>
+        </button>
+
+        {/* 🗑️ Löschen */}
         <button
           disabled={loading}
           onClick={() => {
             localStorage.removeItem("mototourer_tour");
             setStages([]);
+            setActiveStage(null);
+            alert("🗑️ Tour gelöscht!");
           }}
-          className={`px-5 py-2.5 rounded-lg font-medium text-white transition ${
-            loading
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-red-600 hover:bg-red-700"
-          }`}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white transition 
+            ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-red-600 hover:bg-red-700"}`}
         >
-          🗑️ Tour löschen
+          <span>🗑️</span> <span className="hidden sm:inline">Löschen</span>
         </button>
 
+        {/* 🧭 GPX Export */}
+        <button
+          disabled={activeStage === null}
+          onClick={() => {
+            const stage = stages[activeStage];
+            if (!stage) return alert("❌ Keine aktive Etappe!");
+            const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+      <gpx version="1.1" creator="MotoTourer" xmlns="http://www.topografix.com/GPX/1/1">
+      <trk><name>Etappe ${activeStage + 1}</name><trkseg>
+      ${stage.points.map(([lat, lon]) => `<trkpt lat="${lat}" lon="${lon}"></trkpt>`).join("\n")}
+      </trkseg></trk></gpx>`;
+            const blob = new Blob([gpx], { type: "application/gpx+xml" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `mototourer_etappe_${activeStage + 1}.gpx`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white transition 
+            ${activeStage === null ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700"}`}
+        >
+          <span>🧭</span> <span className="hidden sm:inline">GPX</span>
+        </button>
+
+        {/* 📤 JSON Export */}
+        <button
+          disabled={stages.length === 0}
+          onClick={() => {
+            const blob = new Blob([JSON.stringify({ stages }, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "mototourer_tour.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white transition 
+            ${stages.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700"}`}
+        >
+          <span>📤</span> <span className="hidden sm:inline">JSON</span>
+        </button>
+
+        {/* 📥 JSON Import */}
+        <label className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium text-white bg-teal-600 hover:bg-teal-700 cursor-pointer transition">
+          <span>📥</span> <span className="hidden sm:inline">Import</span>
+          <input
+            type="file"
+            accept=".json"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files[0];
+              if (!file) return;
+              try {
+                const text = await file.text();
+                const data = JSON.parse(text);
+                if (data.stages) {
+                  setStages(data.stages);
+                  alert("✅ Tour importiert!");
+                } else alert("❌ Ungültige Datei.");
+              } catch {
+                alert("❌ Fehler beim Import.");
+              }
+            }}
+          />
+        </label>
+
+        {/* 🌗 Dark Mode */}
         <button
           onClick={toggleDarkMode}
-          className="px-5 py-2.5 rounded-lg bg-gray-700 text-white font-medium hover:bg-gray-800 transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md font-medium bg-gray-700 hover:bg-gray-800 text-white transition"
         >
-          {darkMode ? "☀️ Hellmodus" : "🌗 Dunkelmodus"}
+          <span>{darkMode ? "☀️" : "🌗"}</span>
+          <span className="hidden sm:inline">{darkMode ? "Hell" : "Dunkel"}</span>
         </button>
       </div>
-
 
       {/* --- Responsive Layout (CSS Grid) --- */}
       <div
@@ -299,7 +473,7 @@ export default function MapView() {
         </div>
 
         {/* Etappenübersicht */}
-        {!loading && !error && stages.length > 0 && (
+        {!loading && !error && Array.isArray(stages) && stages.length > 0 ? (
           <div
             style={{
               background: darkMode ? "#1f2937" : "#f8f9fa",
@@ -340,7 +514,9 @@ export default function MapView() {
               ))}
             </ul>
           </div>
-        )}
+          ) : (
+            !loading && <p style={{ textAlign: "center" }}>Keine Tour geladen.</p>
+          )}
       </div>
 
       {/* Fehleranzeige */}
