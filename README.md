@@ -61,9 +61,9 @@ Letztes Update: _{{heutiges Datum}}_
 ---
 
 ### 🌍 Tag 13 – Routenplanung
-- [x] Eingabe Start/Ziel/Zwischenstopps im Frontend
-- [x] Backend berechnet dynamische ORS-Route
-- [x] Vorschau-Karte vor Generierung
+- [ ] Eingabe Start/Ziel/Zwischenstopps im Frontend
+- [ ] Backend berechnet dynamische ORS-Route
+- [ ] Vorschau-Karte vor Generierung
 - [ ] Tour-Umkehrung (Hin- & Rückweg)
 
 ---
