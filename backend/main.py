@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from geopy.distance import geodesic
 import httpx
 import os, json, hashlib, requests, time, logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ------------------------------------------------------------
 # 🚀 FastAPI-Setup
@@ -26,7 +26,7 @@ logging.basicConfig(
     filename=LOG_FILE,
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 def log_info(msg: str):
@@ -36,7 +36,6 @@ def log_info(msg: str):
 def log_error(msg: str):
     print(f"❌ {msg}")
     logging.error(msg)
-
 
 # ------------------------------------------------------------
 # 📊 Statistik-System
@@ -61,33 +60,38 @@ def log_stage_summary(stages_count: int):
     for key in api_stats:
         api_stats[key] = 0
 
-
 # ------------------------------------------------------------
 # 🔑 API Key (OpenRouteService)
 # ------------------------------------------------------------
 ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImU0YTM0ZmM4NzhmODQwMDBhZjg1NmRmNjg5NDJjMGJjIiwiaCI6Im11cm11cjY0In0="
 
 # ------------------------------------------------------------
-# 💾 Cache-System
+# 💾 Cache-System mit Unterordnern
 # ------------------------------------------------------------
 CACHE_DIR = "cache"
+CACHE_LIFETIME_DAYS = 90  # quartalsweise Bereinigung (~3 Monate)
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 def _make_cache_key(url, body):
     raw = json.dumps({"url": url, "body": body}, sort_keys=True)
     return hashlib.sha1(raw.encode()).hexdigest()
 
-def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24):
-    key = _make_cache_key(url, body)
-    path = os.path.join(CACHE_DIR, f"{key}.json")
+def _get_cache_path(url: str, body_or_params, category: str):
+    key = _make_cache_key(url, body_or_params)
+    category_dir = os.path.join(CACHE_DIR, category)
+    os.makedirs(category_dir, exist_ok=True)
+    return os.path.join(category_dir, f"{key}.json")
 
+def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24, category="misc"):
+    path = _get_cache_path(url, body, category)
     if os.path.exists(path):
         age_hours = (time.time() - os.path.getmtime(path)) / 3600
         if age_hours < max_age_hours:
             try:
-                api_stats["cache_hits"] += 1
                 with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    api_stats["cache_hits"] += 1
+                    return data
             except Exception:
                 pass
 
@@ -98,7 +102,7 @@ def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24):
             data = resp.json()
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-            log_info(f"✅ Cached: {url}")
+            log_info(f"✅ Cached POST → {category}: {url}")
             return data
         else:
             api_stats["api_errors"] += 1
@@ -106,24 +110,23 @@ def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24):
             return {"warning": f"Fehler {resp.status_code}"}
     except requests.exceptions.Timeout:
         api_stats["api_errors"] += 1
-        log_error("⏳ Timeout bei API")
+        log_error("⏳ Timeout bei POST")
         return {"warning": "Timeout"}
     except Exception as e:
         api_stats["api_errors"] += 1
-        log_error(f"💥 Cache-Request-Fehler: {e}")
+        log_error(f"💥 Cache-POST-Fehler: {e}")
         return {"warning": str(e)}
 
-def cached_get_request(url, params=None, headers=None, timeout=8, max_age_hours=24):
-    key = _make_cache_key(url, params or {})
-    path = os.path.join(CACHE_DIR, f"{key}.json")
-
+def cached_get_request(url, params=None, headers=None, timeout=8, max_age_hours=24, category="misc"):
+    path = _get_cache_path(url, params or {}, category)
     if os.path.exists(path):
         age_hours = (time.time() - os.path.getmtime(path)) / 3600
         if age_hours < max_age_hours:
             try:
-                api_stats["cache_hits"] += 1
                 with open(path, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    data = json.load(f)
+                    api_stats["cache_hits"] += 1
+                    return data
             except Exception:
                 pass
 
@@ -134,7 +137,7 @@ def cached_get_request(url, params=None, headers=None, timeout=8, max_age_hours=
             data = resp.json()
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f)
-            log_info(f"✅ Cached GET: {url}")
+            log_info(f"✅ Cached GET → {category}: {url}")
             return data
         else:
             api_stats["api_errors"] += 1
@@ -145,38 +148,71 @@ def cached_get_request(url, params=None, headers=None, timeout=8, max_age_hours=
         log_error(f"💥 Cache-GET-Fehler: {e}")
         return {"warning": str(e)}
 
+def clean_old_cache_files():
+    now = time.time()
+    removed, total = 0, 0
+    for root, _, files in os.walk(CACHE_DIR):
+        for f in files:
+            if not f.endswith(".json"):
+                continue
+            total += 1
+            path = os.path.join(root, f)
+            age_days = (now - os.path.getmtime(path)) / 86400
+            if age_days > CACHE_LIFETIME_DAYS:
+                try:
+                    os.remove(path)
+                    removed += 1
+                except Exception as e:
+                    log_error(f"⚠️ Fehler beim Löschen {f}: {e}")
+    log_info(f"🧹 Cache-Bereinigung abgeschlossen: {removed}/{total} alte Dateien gelöscht.")
+
+def initialize_cache_structure():
+    subdirs = ["route", "elevation", "geocode"]
+    for sub in subdirs:
+        os.makedirs(os.path.join(CACHE_DIR, sub), exist_ok=True)
+    log_info(f"📁 Cache-Verzeichnisse überprüft: {', '.join(subdirs)}")
+
+    marker_file = os.path.join(CACHE_DIR, ".last_cleanup")
+    if os.path.exists(marker_file):
+        last_cleanup = datetime.fromtimestamp(os.path.getmtime(marker_file))
+        if datetime.now() - last_cleanup > timedelta(days=CACHE_LIFETIME_DAYS):
+            log_info("🧹 Quartalsbereinigung wird durchgeführt …")
+            clean_old_cache_files()
+            open(marker_file, "w").close()
+        else:
+            log_info("✅ Cache aktuell – keine Bereinigung nötig.")
+    else:
+        log_info("🧹 Erste Bereinigung – Marker wird erstellt.")
+        clean_old_cache_files()
+        open(marker_file, "w").close()
+
+# Initialisierung beim Start
+initialize_cache_structure()
+
 # ------------------------------------------------------------
 # 🧭 Hilfsfunktionen
 # ------------------------------------------------------------
 def reverse_geocode(lat, lon):
-    """Reverse-Geocoding mit Cache über ORS"""
     url = "https://api.openrouteservice.org/geocode/reverse"
     params = {"point.lat": lat, "point.lon": lon, "lang": "de"}
     headers = {"Authorization": ORS_API_KEY}
-    data = cached_get_request(url, params=params, headers=headers)
+    data = cached_get_request(url, params=params, headers=headers, category="geocode")
 
     features = data.get("features", [])
     if not features:
         api_stats["api_errors"] += 1
         return "Unbekannt"
     props = features[0].get("properties", {})
-    name = props.get("locality") or props.get("name") or props.get("region") or "Unbekannt"
-    return name
-
+    return props.get("locality") or props.get("name") or props.get("region") or "Unbekannt"
 
 def get_elevations(points):
-    """Höhenprofil: kombiniert /line und /point mit Fehlerbehandlung und Caching"""
     sampled = points[::10] if len(points) > 10 else points
     headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
 
-    # --- 1️⃣ Versuch: /elevation/line ---
-    line_body = {
-        "format_in": "polyline",
-        "format_out": "geojson",
-        "geometry": [[lon, lat] for lat, lon in sampled],
-    }
+    # 1️⃣ Versuch: /elevation/line
     line_url = "https://api.openrouteservice.org/elevation/line"
-    data = cached_post_request(line_url, line_body, headers=headers)
+    line_body = {"format_in": "polyline", "format_out": "geojson", "geometry": [[lon, lat] for lat, lon in sampled]}
+    data = cached_post_request(line_url, line_body, headers=headers, category="elevation")
 
     if isinstance(data, dict) and "geometry" in data:
         coords = data["geometry"].get("coordinates", [])
@@ -184,16 +220,12 @@ def get_elevations(points):
         if heights:
             log_info(f"✅ Höhen über /line ({len(heights)} Punkte)")
             return heights
-    else:
-        log_error("⚠️ Fehler oder Limit bei /elevation/line – Fallback aktiv")
+    log_error("⚠️ Fehler oder Limit bei /elevation/line – Fallback aktiv")
 
-    # --- 2️⃣ Fallback: /elevation/point ---
-    point_body = {
-        "format_in": "geojson",
-        "geometry": {"type": "MultiPoint", "coordinates": [[lon, lat] for lat, lon in sampled]},
-    }
+    # 2️⃣ Fallback: /elevation/point
     point_url = "https://api.openrouteservice.org/elevation/point"
-    data = cached_post_request(point_url, point_body, headers=headers)
+    point_body = {"format_in": "geojson", "geometry": {"type": "MultiPoint", "coordinates": [[lon, lat] for lat, lon in sampled]}}
+    data = cached_post_request(point_url, point_body, headers=headers, category="elevation")
 
     if isinstance(data, dict) and "geometry" in data:
         coords = data["geometry"].get("coordinates", [])
@@ -206,7 +238,6 @@ def get_elevations(points):
     log_error("⚠️ Keine Höheninformationen verfügbar – Fallback-Wert genutzt")
     return []
 
-
 # ------------------------------------------------------------
 # 🔍 Test
 # ------------------------------------------------------------
@@ -218,16 +249,11 @@ def ping():
 # 🛣️ Route berechnen
 # ------------------------------------------------------------
 @app.get("/route")
-def get_route(
-    start_lat: float = 48.1351,
-    start_lon: float = 11.5820,
-    end_lat: float = 47.3769,
-    end_lon: float = 8.5417,
-):
+def get_route(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: float = 47.3769, end_lon: float = 8.5417):
     try:
         url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
         params = {"api_key": ORS_API_KEY, "start": f"{start_lon},{start_lat}", "end": f"{end_lon},{end_lat}"}
-        data = cached_get_request(url, params=params)
+        data = cached_get_request(url, params=params, category="route")
         if "features" not in data:
             api_stats["api_errors"] += 1
             return {"error": data.get("error", "Unbekannter Fehler")}
@@ -244,16 +270,10 @@ def get_route(
 # 🏍️ Etappen berechnen
 # ------------------------------------------------------------
 @app.get("/stages")
-def get_stages(
-    start_lat: float = 48.1351,
-    start_lon: float = 11.5820,
-    end_lat: float = 57.5886,
-    end_lon: float = 9.9592,
-    stage_length_km: float = 300.0,
-):
+def get_stages(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: float = 57.5886, end_lon: float = 9.9592, stage_length_km: float = 300.0):
     url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
     params = {"api_key": ORS_API_KEY, "start": f"{start_lon},{start_lat}", "end": f"{end_lon},{end_lat}"}
-    data = cached_get_request(url, params=params)
+    data = cached_get_request(url, params=params, category="route")
 
     if "features" not in data:
         api_stats["api_errors"] += 1
@@ -269,17 +289,10 @@ def get_stages(
         dist += d
         total += d
         stage.append(route[i])
-
         if dist >= stage_length_km or i == len(route) - 1:
             heights = get_elevations(stage)
-            elevation_gain = int(sum(max(heights[j] - heights[j - 1], 0)
-                                     for j in range(1, len(heights)))) if heights else int(round(dist * 3))
-
-            stages.append({
-                "points": stage,
-                "distance_km": round(dist, 1),
-                "elevation_gain_m": elevation_gain
-            })
+            elevation_gain = int(sum(max(heights[j] - heights[j - 1], 0) for j in range(1, len(heights)))) if heights else int(round(dist * 3))
+            stages.append({"points": stage, "distance_km": round(dist, 1), "elevation_gain_m": elevation_gain})
             stage = [route[i]]
             dist = 0.0
 
@@ -306,13 +319,7 @@ def stage_details(stage: dict):
         start_name = reverse_geocode(start_lat, start_lon)
         end_name = reverse_geocode(end_lat, end_lon)
 
-        return {
-            "distance_km": round(distance, 1),
-            "elevation_gain_m": int(total_up),
-            "start_location": start_name,
-            "end_location": end_name,
-        }
-
+        return {"distance_km": round(distance, 1), "elevation_gain_m": int(total_up), "start_location": start_name, "end_location": end_name}
     except Exception as e:
         api_stats["api_errors"] += 1
         log_error(f"❌ Fehler bei Etappen-Details: {e}")
