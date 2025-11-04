@@ -48,7 +48,7 @@ Letztes Update: _{{heutiges Datum}}_
 
 ### ☁️ Tag 11 – Backend-Optimierung
 - [x] Fehlerbehandlung verbessert
-- [ ] Cache-System für Geocoding-Ergebnisse
+- [x] Cache-System für Geocoding-Ergebnisse
 - [ ] Logging (z. B. `loguru`)
 - [ ] Parallele Requests mit `aiohttp` (Performance)
 
@@ -87,10 +87,10 @@ Letztes Update: _{{heutiges Datum}}_
 ---
 
 ## 🧭 Nächste Schritte (Kurzüberblick)
-1. [ ] UI-Politur: Farben & Dark Mode  
-2. [ ] Klickbare Etappen & Popups  
-3. [ ] Touren speichern / laden  
-4. [ ] Cache-System & Logging  
+1. [x] UI-Politur: Farben & Dark Mode  
+2. [x] Klickbare Etappen & Popups  
+3. [x] Touren speichern / laden  
+4. [x] Cache-System & Logging  
 5. [ ] Automatische Tests aktivieren  
 
 ---
