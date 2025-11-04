@@ -48,16 +48,15 @@ Letztes Update: _{{heutiges Datum}}_
 
 ### ☁️ Tag 11 – Backend-Optimierung
 - [x] Fehlerbehandlung verbessert
-- [x] Cache-System für Geocoding-Ergebnisse
-- [ ] Logging (z. B. `loguru`)
-- [ ] Parallele Requests mit `aiohttp` (Performance)
+- [x] Cache-System für Geocoding / Elevation & Routing - Ergebnisse in Ordnern
+- [x] Logging 
 
 ---
 
 ### 📈 Tag 12 – Erweiterte Analyse
-- [ ] Höhenprofil-Analyse (min/max)
-- [ ] Steigungsabschnitte berechnen
-- [ ] Geschätzte Fahrzeit anzeigen (80 km/h Schnitt)
+- [x] Höhenprofil-Analyse (min/max)
+- [x] Steigungsabschnitte berechnen
+- [x] Geschätzte Fahrzeit anzeigen (80 km/h Schnitt)
 
 ---
 
