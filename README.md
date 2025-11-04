@@ -54,9 +54,9 @@ Letztes Update: _{{heutiges Datum}}_
 ---
 
 ### 📈 Tag 12 – Erweiterte Analyse
-- [ ] Höhenprofil-Analyse (min/max)
-- [ ] Steigungsabschnitte berechnen
-- [ ] Geschätzte Fahrzeit anzeigen (80 km/h Schnitt)
+- [x] Höhenprofil-Analyse (min/max)
+- [x] Steigungsabschnitte berechnen
+- [x] Geschätzte Fahrzeit anzeigen (80 km/h Schnitt)
 
 ---
 
