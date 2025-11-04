@@ -472,7 +472,7 @@ export default function MapView() {
           </MapContainer>
         </div>
 
-        {/* Etappenübersicht */}
+        {/* 🗺️ Etappenübersicht – erweitert mit Analysewerten */}
         {!loading && !error && Array.isArray(stages) && stages.length > 0 ? (
           <div
             style={{
@@ -480,6 +480,7 @@ export default function MapView() {
               borderRadius: "12px",
               padding: "1rem",
               boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
+              margin: "0 auto",
             }}
           >
             <h3
@@ -489,34 +490,65 @@ export default function MapView() {
                 color: darkMode ? "#fff" : "#222",
               }}
             >
-              🗺️ Etappenübersicht
+              🏍️ Etappenübersicht & Analyse
             </h3>
+
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {stages.map((s, i) => (
                 <li
                   key={i}
-                  onClick={() => setActiveStage(i)} // ✅ klickbare Etappe
+                  onClick={() => setActiveStage(i)}
                   style={{
                     color: colors[i % colors.length],
                     marginBottom: "1.5rem",
                     cursor: "pointer",
                     borderBottom: activeStage === i ? "2px solid #0077ff" : "1px solid #ccc",
-                    paddingBottom: "0.5rem",
-                    backgroundColor: activeStage === i ? "rgba(0, 119, 255, 0.1)" : "transparent",
-                    borderRadius: "6px",
+                    padding: "0.75rem",
+                    backgroundColor: activeStage === i
+                      ? "rgba(0, 119, 255, 0.1)"
+                      : darkMode
+                      ? "#374151"
+                      : "#fff",
+                    borderRadius: "8px",
+                    transition: "all 0.2s ease",
                   }}
                 >
-                  <strong>Etappe {i + 1}</strong><br />
-                  <span>{s.start_location || "Unbekannt"} → {s.end_location || "Unbekannt"}</span><br />
-                  <span>Distanz: {s.distance_km?.toFixed(1)} km</span><br />
-                  <span>Höhenmeter: +{s.elevation_gain_m || 0} m</span>
+                  <strong>Etappe {i + 1}</strong>
+                  <br />
+                  <span>{s.start_location || "Unbekannt"} → {s.end_location || "Unbekannt"}</span>
+                  <br />
+                  <span>📏 Distanz: {s.distance_km?.toFixed(1)} km</span>
+                  <br />
+                  <span>⛰️ Höhenmeter: +{s.elevation_gain_m || 0} m / -{s.elevation_loss_m || 0} m</span>
+                  {s.min_elevation_m && s.max_elevation_m && (
+                    <><br />
+                      <span>📉 min: {s.min_elevation_m} m | 📈 max: {s.max_elevation_m} m</span>
+                    </>
+                  )}
+                  {s.steep_segments && (
+                    <>
+                      <br />
+                      <span>
+                        🚵 Steigungen: {s.steep_segments.mild || 0}× mild,{" "}
+                        {s.steep_segments.steep || 0}× steil,{" "}
+                        {s.steep_segments.very_steep || 0}× sehr steil
+                      </span>
+                    </>
+                  )}
+                  <br />
+                  <span>⏱️ Zeit (Ø 55 km/h): {s.estimated_time_h ? `${(s.estimated_time_h).toFixed(2)} h` : "–"}</span>
                 </li>
               ))}
             </ul>
           </div>
-          ) : (
-            !loading && <p style={{ textAlign: "center" }}>Keine Tour geladen.</p>
-          )}
+        ) : (
+          !loading && (
+            <p style={{ textAlign: "center", color: darkMode ? "#ccc" : "#333" }}>
+              Keine Tour geladen.
+            </p>
+          )
+        )}
+
       </div>
 
       {/* Fehleranzeige */}

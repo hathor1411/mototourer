@@ -206,37 +206,67 @@ def reverse_geocode(lat, lon):
     return props.get("locality") or props.get("name") or props.get("region") or "Unbekannt"
 
 def get_elevations(points):
+    """Höhenprofil mit robustem ORS-Parsing und Fallback."""
     sampled = points[::10] if len(points) > 10 else points
     headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
 
-    # 1️⃣ Versuch: /elevation/line
+    # --- 1️⃣ Versuch: /elevation/line ---
     line_url = "https://api.openrouteservice.org/elevation/line"
-    line_body = {"format_in": "polyline", "format_out": "geojson", "geometry": [[lon, lat] for lat, lon in sampled]}
+    line_body = {
+        "format_in": "geojson",
+        "format_out": "geojson",
+        "geometry": {
+            "type": "LineString",
+            "coordinates": [[lon, lat] for lat, lon in sampled],
+        },
+    }
+
     data = cached_post_request(line_url, line_body, headers=headers, category="elevation")
 
-    if isinstance(data, dict) and "geometry" in data:
-        coords = data["geometry"].get("coordinates", [])
-        heights = [c[2] for c in coords if len(c) > 2]
-        if heights:
-            log_info(f"✅ Höhen über /line ({len(heights)} Punkte)")
-            return heights
-    log_error("⚠️ Fehler oder Limit bei /elevation/line – Fallback aktiv")
+    coords = []
+    if isinstance(data, dict):
+        # Hauptfall: data["geometry"]["coordinates"]
+        if "geometry" in data and isinstance(data["geometry"], dict):
+            coords = data["geometry"].get("coordinates", [])
+        # Alternative Struktur: data["coordinates"]
+        elif "coordinates" in data:
+            coords = data["coordinates"]
 
-    # 2️⃣ Fallback: /elevation/point
+    if coords and all(len(c) > 2 for c in coords):
+        heights = [c[2] for c in coords]
+        log_info(f"✅ Höhen über /line ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
+        return heights
+
+    log_error(f"⚠️ Keine gültigen Höhen über /line erhalten ({len(coords)} Punkte). Fallback auf /point …")
+
+    # --- 2️⃣ Fallback: /elevation/point ---
     point_url = "https://api.openrouteservice.org/elevation/point"
-    point_body = {"format_in": "geojson", "geometry": {"type": "MultiPoint", "coordinates": [[lon, lat] for lat, lon in sampled]}}
+    point_body = {
+        "format_in": "geojson",
+        "geometry": {
+            "type": "MultiPoint",
+            "coordinates": [[lon, lat] for lat, lon in sampled],
+        },
+    }
+
     data = cached_post_request(point_url, point_body, headers=headers, category="elevation")
 
-    if isinstance(data, dict) and "geometry" in data:
-        coords = data["geometry"].get("coordinates", [])
-        heights = [c[2] for c in coords if len(c) > 2]
-        if heights:
-            log_info(f"✅ Höhen über /point ({len(heights)} Punkte)")
-            return heights
+    coords = []
+    if isinstance(data, dict):
+        if "geometry" in data and isinstance(data["geometry"], dict):
+            coords = data["geometry"].get("coordinates", [])
+        elif "coordinates" in data:
+            coords = data["coordinates"]
+
+    if coords and all(len(c) > 2 for c in coords):
+        heights = [c[2] for c in coords]
+        log_info(f"✅ Höhen über /point ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
+        return heights
 
     api_stats["api_errors"] += 1
-    log_error("⚠️ Keine Höheninformationen verfügbar – Fallback-Wert genutzt")
+    log_error("❌ Keine Höheninformationen verfügbar – Fallbackwert genutzt.")
     return []
+
 
 # ------------------------------------------------------------
 # 🔍 Test
@@ -300,7 +330,7 @@ def get_stages(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: 
     return {"stages": stages, "total_distance_km": round(total, 1)}
 
 # ------------------------------------------------------------
-# 🏞️ Etappen-Details
+# 🏞️ Etappen-Details (mit Höhenanalyse, Steigungen & Fahrzeit)
 # ------------------------------------------------------------
 @app.post("/stage_details")
 def stage_details(stage: dict):
@@ -310,19 +340,59 @@ def stage_details(stage: dict):
             api_stats["api_errors"] += 1
             return {"error": "Etappe hat zu wenige Punkte"}
 
+        # 📏 Distanzberechnung
         distance = sum(geodesic(coords[i], coords[i + 1]).km for i in range(len(coords) - 1))
-        heights = get_elevations(coords)
-        total_up = sum(max(0, heights[i + 1] - heights[i]) for i in range(len(heights) - 1)) if heights else int(distance * 3)
 
+        # ⛰️ Höhenanalyse
+        heights = get_elevations(coords)
+        if heights and len(heights) > 1:
+            diffs = [heights[i + 1] - heights[i] for i in range(len(heights) - 1)]
+            total_up = sum(d for d in diffs if d > 0)
+            total_down = abs(sum(d for d in diffs if d < 0))
+            min_h, max_h = min(heights), max(heights)
+        else:
+            total_up = int(distance * 3)
+            total_down = 0
+            min_h = max_h = 0
+
+        # 🧮 Steigungsabschnitte (vereinfacht: 0.3% mild, 3% steil, >7% sehr steil)
+        mild = len([d for d in diffs if 3 < d < 10])
+        steep = len([d for d in diffs if 10 <= d < 25])
+        very_steep = len([d for d in diffs if d >= 25])
+
+        # ⏱️ Geschätzte Zeit (80 km/h Schnitt)
+        hours = round(distance / 55, 2)
+
+        # 📍 Start/Ziel
         start_lat, start_lon = coords[0]
         end_lat, end_lon = coords[-1]
         start_name = reverse_geocode(start_lat, start_lon)
         end_name = reverse_geocode(end_lat, end_lon)
 
-        return {"distance_km": round(distance, 1), "elevation_gain_m": int(total_up), "start_location": start_name, "end_location": end_name}
+        # 🪵 Log für Debug
+        log_info(
+            f"📊 Etappe analysiert: {distance:.1f} km, Δ+{int(total_up)} m / Δ-{int(total_down)} m, {hours:.2f} h geschätzt"
+        )
+
+        return {
+            "distance_km": round(distance, 1),
+            "elevation_gain_m": int(total_up),
+            "elevation_loss_m": int(total_down),
+            "min_elevation_m": int(min_h),
+            "max_elevation_m": int(max_h),
+            "gradient_sections": {
+                "mild": mild,
+                "steep": steep,
+                "very_steep": very_steep
+            },
+            "estimated_time_h": hours,
+            "start_location": start_name,
+            "end_location": end_name,
+        }
+
     except Exception as e:
         api_stats["api_errors"] += 1
-        log_error(f"❌ Fehler bei Etappen-Details: {e}")
+        log_error(f"❌ Fehler bei Etappen-Analyse: {e}")
         return {"error": str(e)}
 
 # ------------------------------------------------------------
