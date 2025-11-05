@@ -115,7 +115,7 @@ export default function MapView() {
       const bounds = stage.points.map(p => [p[0], p[1]]);
       map.fitBounds(bounds, { padding: [50, 50] }); // ✅ Zoom auf Etappe
     }, [stage, map]);
-
+      map.setZoom(7); // oder 8, je nach gewünschtem Detailgrad
     return null;
   }
 
@@ -178,7 +178,7 @@ export default function MapView() {
   };
 
 
-
+  
   const colors = ["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"];
   const start = [48.1351, 11.5820];
   const end = [57.5886, 9.9592];
@@ -257,14 +257,50 @@ export default function MapView() {
       )}
 
       <RoutePlanner
-        onPlanRoute={({ start, end, stops }) => {
-          console.log("Route planen:", { start, end, stops });
-          // TODO: Hier später API-Aufruf an Backend /route_extended
+        onPlanRoute={async ({ start, end, stops }) => {
+          setLoading(true);
+          try {
+            const res = await fetch("http://127.0.0.1:8000/route_extended", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ start, end, stops }),
+            });
+            const data = await res.json();
+
+            if (data.error) {
+              setError(data.error);
+              return;
+            }
+
+            // ✅ Route speichern und sofort anzeigen
+            const newStage = {
+              points: data.route.map(([lat, lon]) => [lat, lon]),
+              distance_km: data.distance_km,
+              min_elevation_m: data.min_elevation,
+              max_elevation_m: data.max_elevation,
+              start_location: start,
+              end_location: end,
+            };
+
+            setStages([newStage]);
+            setActiveStage(0);
+            setError(null);
+            setLoading(false);
+
+            // 💾 optional speichern
+            localStorage.setItem("mototourer_tour", JSON.stringify([newStage]));
+
+            console.log(
+              `✅ Route berechnet: ${data.distance_km} km, ${data.min_elevation}–${data.max_elevation} m`
+            );
+          } catch (err) {
+            console.error("💥 Fehler bei der Routenberechnung:", err);
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
         }}
-        onReverse={({ start, end }) => {
-          // Start und Ziel tauschen
-          alert(`Umgekehrte Tour: ${end} → ${start}`);
-        }}
+
       />
 
 
