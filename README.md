@@ -1,97 +1,104 @@
-# 🏍️ MotoTourer
+# 🏍️ **MotoTourer**
 
-[![Build & Test MotoTourer](https://github.com/hathor1411/mototourer/actions/workflows/build.yml/badge.svg)](https://github.com/hathor1411/mototourer/actions/workflows/build.yml)
-
-> Eine OpenStreetMap-basierte Web-App zur **Planung mehrtägiger Motorradtouren**  
-> mit automatischer Etappenaufteilung, Höhenprofilen und interaktiver Kartenanzeige.
+> **Planen. Fahren. Erleben.**  
+> MotoTourer ist eine moderne Web-App für Motorradfahrer zur Planung mehrtägiger Touren — mit Etappenberechnung, Höhenprofil, Kartenansicht und zukünftig smarten Reisevorschlägen.
 
 ---
 
-# 🏍️ MotoTourer – Roadmap
+## 🚀 **Live Demo**
 
-> **Projektziel:**  
-> Eine Web-App zur Planung von mehrtägigen Motorradtouren mit automatischer Etappenaufteilung, Kartenansicht und Höhenprofilen.
+🔗 **Frontend (GitHub Pages):**  
+👉 [https://hathor1411.github.io/mototourer/](https://hathor1411.github.io/mototourer/)
 
----
-
-## ✅ Status
-Aktuelle Phase: **Tag 8 – UX & Design-Feinschliff**  
-Letztes Update: _{{heutiges Datum}}_
+⚙️ **Backend (FastAPI – Codespaces):**  
+👉 [https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/docs](https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/docs)
 
 ---
 
-## 🗓️ **Tag 8–14: Ausbau & Verfeinerung**
+## 🧭 **Projektüberblick**
 
-### 🧩 Tag 8 – UX & Design-Feinschliff
-- [x] Dynamische Ladeanzeige (Etappe 1/5)
-- [x] UI-Tuning (Farben, Layout, Buttons)
-- [x] Responsive Ansicht prüfen (Mobile/Tablet/Desktop)
-- [x] Dark Mode (optional)
+MotoTourer kombiniert **OpenStreetMap**, **OpenRouteService** und **React + FastAPI**,  
+um Motorradfahrer:innen eine einfache, präzise und visuell ansprechende Möglichkeit zur **Tourenplanung mit Etappenberechnung** zu bieten.
 
----
+### ✨ Aktuelle Hauptfunktionen
 
-### 🗺️ Tag 9 – Etappen-Interaktion
-- [x] Klick auf Etappe → visuelles Highlight
-- [x] Popup mit Details (Start, Ziel, Distanz, Höhenmeter, Dauer)
-- [x] Auswahlfeld „aktive Etappe“
-- [x] Marker-Beschriftung (Start/Ziel)
-
----
-
-### 💾 Tag 10 – Speicherung & Session
-- [x] Tour in LocalStorage speichern
-- [x] „Tour laden / löschen“ Buttons
-- [x] Export/Import als JSON-Datei & GPX-Datei
-- [x] (Optional) API-Endpunkt für gespeicherte Touren
+- 📍 Start–Ziel–Routenplanung (inkl. Zwischenstopps)
+- ⛰️ Höhenprofil & Distanzanalyse
+- 🏁 Etappenberechnung (automatisch)
+- 🗺️ Leaflet-Karte mit nummerierten Etappenmarkern
+- 💾 Lokale Speicherung & Wiederherstellung
+- 🌗 Dark-/Lightmode
+- 🚀 Live-Backend via FastAPI (OpenRouteService API)
 
 ---
 
-### ☁️ Tag 11 – Backend-Optimierung
-- [x] Fehlerbehandlung verbessert
-- [x] Cache-System für Geocoding / Elevation & Routing - Ergebnisse in Ordnern
-- [x] Logging 
+## 🧱 **Technologien**
+
+| Bereich | Technologien |
+|----------|---------------|
+| **Frontend** | React (Vite), Leaflet, Tailwind/UnoCSS |
+| **Backend** | FastAPI, Python, geopy, openrouteservice |
+| **Deployment** | GitHub Pages (Frontend), Codespaces (Backend) |
+| **API** | OpenRouteService, OpenElevation (optional) |
 
 ---
 
-### 📈 Tag 12 – Erweiterte Analyse
-- [x] Höhenprofil-Analyse (min/max)
-- [x] Steigungsabschnitte berechnen
-- [x] Geschätzte Fahrzeit anzeigen (55 km/h Schnitt)
+## 🗺️ **Roadmap – MotoTourer v2+**
+
+> Entwicklungsplan für die nächsten Versionen (Phasenweise)
 
 ---
 
-### 🌍 Tag 13 – Routenplanung
-- [x] Eingabe Start/Ziel/Zwischenstopps im Frontend
-- [x] Backend berechnet dynamische ORS-Route
-- [x] Vorschau-Karte vor Generierung
-- [ ] Tour-Umkehrung (Hin- & Rückweg)
+### 🧩 **Phase 1 — Erweiterte Kernfunktionen & neues Layout**
+**Ziel:** Mehr Kontrolle über Routen + professionelleres UI
+
+- [ ] Bis zu 10 Zwischenziele  
+- [ ] Modernes, minimalistisches Layout (2-Spalten-Ansicht)  
+- [ ] Etappenberechnung: variabel nach Tageslänge oder Zeit  
+- [ ] Einheitliches Karten-/Listendesign  
+- [ ] Farblich abgestufte Etappenlinien  
 
 ---
 
-### 🧪 Tag 14 – Testing & Feinschliff
-- [ ] Unit-Tests (Backend: `pytest`)
-- [ ] Frontend-Tests (`vitest`)
-- [ ] GitHub Actions → Test Coverage
-- [ ] Screenshots & Demo-Link im README
+### 🔐 **Phase 2 — Registrierung & Profile**
+**Ziel:** Persönliche Tourverwaltung und Motorradprofile
+
+- [ ] User-Login & Registrierung (FastAPI + JWT oder Supabase)  
+- [ ] Nutzerprofil (Name, Avatar, Wohnort, Lieblingsregion)  
+- [ ] Motorradprofile (Tankgröße, Reichweite, Komforttempo)  
+- [ ] Speicherung & Laden von Touren pro Nutzer  
 
 ---
 
-## 🚀 Bonus-Phase (nach Tag 14)
+### 🏕️ **Phase 3 — Reise-Assistent mit externen APIs**
+**Ziel:** „Smart Touring“ mit echten Reiseempfehlungen
 
-- [ ] Benutzeraccounts (Login / Registrierung)
-- [ ] Persönliche Tourhistorie
-- [ ] Teilen von Touren via Link
-- [ ] Deployment auf Render / Railway / Vercel / Netlify
-
----
-
-## 🧭 Nächste Schritte (Kurzüberblick)
-1. [x] UI-Politur: Farben & Dark Mode  
-2. [x] Klickbare Etappen & Popups  
-3. [x] Touren speichern / laden  
-4. [x] Cache-System & Logging  
-5. [ ] Automatische Tests aktivieren  
+- [ ] Übernachtungsvorschläge (Booking / OpenTripMap API)  
+- [ ] POIs entlang der Etappen (Tankstellen, Sehenswürdigkeiten)  
+- [ ] Anzeige in Karte & Liste mit Bewertungen/Links  
+- [ ] Karten-Tabs: „Übernachtung | Essen | Tanken“  
 
 ---
 
-_© 2025 MotoTourer – entwickelt mit Leidenschaft & Kaffee ☕_
+### 💎 **Phase 4 — Premium-Option**
+**Ziel:** Erweiterte Funktionen & Monetarisierung
+
+- [ ] Premium-Accounts (Stripe/LemonSqueezy Integration)  
+- [ ] Offline-Modus / Cloud-Sync / GPX-Export  
+- [ ] Werbefreie Nutzung  
+- [ ] Benutzerdefinierte Kartenlayer (Topo/Satellite)  
+
+---
+
+### 🌍 **Phase 5 — Community & Mobile**
+**Ziel:** Ausbau zur Touring-Plattform
+
+- [ ] Live-Tracking & Tour-Teilen  
+- [ ] Wetterdaten-Integration (OpenWeather API)  
+- [ ] Progressive Web App (PWA) / Mobile App  
+- [ ] Community-Funktionen (Kommentare, Tour-Ranking)  
+
+---
+
+## 🧩 **Architekturübersicht**
+
