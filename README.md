@@ -98,7 +98,3 @@ um Motorradfahrer:innen eine einfache, präzise und visuell ansprechende Möglic
 - [ ] Progressive Web App (PWA) / Mobile App  
 - [ ] Community-Funktionen (Kommentare, Tour-Ranking)  
 
----
-
-## 🧩 **Architekturübersicht**
-
