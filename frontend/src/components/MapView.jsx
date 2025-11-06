@@ -40,7 +40,7 @@ export default function MapView() {
       }
 
       console.log("🔄 Lade neue Etappen von API...");
-      const res = await fetch("http://localhost:8000/stages");
+      const res = await fetch("https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/stages");
       const data = await res.json();
 
       if (!data.stages || data.stages.length === 0) throw new Error("Keine Etappen gefunden.");
@@ -52,7 +52,7 @@ export default function MapView() {
       for (let i = 0; i < data.stages.length; i++) {
         setProgress({ current: i + 1, total: data.stages.length });
         try {
-          const resp = await fetch("http://localhost:8000/stage_details", {
+          const resp = await fetch("https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/stage_details", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data.stages[i]),
@@ -171,7 +171,7 @@ export default function MapView() {
             setLoading(true);
             setProgress({ current: 0, total: 0 }); // 🧩 hier hinzufügen
             try {
-              const res = await fetch("http://127.0.0.1:8000/route_to_stages", {
+              const res = await fetch("https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/route_to_stages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ start, end, stops, stage_length_km: 300 }),
@@ -230,7 +230,7 @@ export default function MapView() {
 
           try {
             setLoading(true);
-            const res = await fetch("http://127.0.0.1:8000/route_to_stages", {
+            const res = await fetch("https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev/route_to_stages", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ start: newStart, end: newEnd, stops, stage_length_km: 300 }),
