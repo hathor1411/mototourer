@@ -558,9 +558,9 @@ def route_extended(data: dict):
             heights = [c[2] for c in coords if len(c) > 2]
 
             # 🔍 Plausibilitätsprüfung – Fallback bei zu flachen Höhen
-            if not heights or max(heights) - min(heights) < 50:
-                log_info("⚠️ Polyline enthält keine realen Höhen – hole Höhenprofil nach …")
-                heights = get_elevations([[lon, lat] for lat, lon in route_coords])
+            log_info("⚙️ Hole Höhenprofil für Route (analog zu /stages) …")
+            heights = get_elevations([[lon, lat] for lat, lon in route_coords])
+
 
             if heights and len(heights) > 1:
                 diffs = [round(heights[i + 1] - heights[i], 2) for i in range(len(heights) - 1)]
@@ -590,4 +590,80 @@ def route_extended(data: dict):
     except Exception as e:
         api_stats["api_errors"] += 1
         log_error(f"❌ Fehler bei /route_extended: {e}")
+        return {"error": str(e)}
+
+# ------------------------------------------------------------
+# 🏍️ Ganze Route in Etappen zerlegen
+# ------------------------------------------------------------
+@app.post("/route_to_stages")
+def route_to_stages(data: dict):
+    """
+    Erwartet JSON:
+    {
+        "start": "München",
+        "end": "Hamburg",
+        "stops": ["Leipzig"],
+        "stage_length_km": 300
+    }
+    """
+    try:
+        import requests
+        from geopy.distance import geodesic
+
+        # 1️⃣ Erst komplette Route holen (wie /route_extended)
+        url = "http://127.0.0.1:8000/route_extended"
+        headers = {"Content-Type": "application/json"}
+        resp = requests.post(url, json=data, headers=headers, timeout=60)
+        route_data = resp.json()
+
+        if "error" in route_data:
+            return route_data
+
+        route_points = route_data.get("route", [])
+        if not route_points:
+            return {"error": "Keine Route gefunden."}
+
+        # 2️⃣ Route in Etappen zerlegen
+        stage_length_km = data.get("stage_length_km", 300)
+        stages = []
+        stage = [route_points[0]]
+        dist = total = 0.0
+
+        for i in range(1, len(route_points)):
+            d = geodesic(route_points[i - 1], route_points[i]).km
+            dist += d
+            total += d
+            stage.append(route_points[i])
+
+            if dist >= stage_length_km or i == len(route_points) - 1:
+                heights = get_elevations(stage)
+                if heights:
+                    elevation_gain = int(sum(max(heights[j] - heights[j - 1], 0) for j in range(1, len(heights))))
+                    elevation_loss = int(sum(max(heights[j - 1] - heights[j], 0) for j in range(1, len(heights))))
+                    min_h, max_h = int(min(heights)), int(max(heights))
+                else:
+                    elevation_gain = elevation_loss = min_h = max_h = 0
+
+                hours = round(dist / 55, 2)
+                stages.append({
+                    "points": stage,
+                    "distance_km": round(dist, 1),
+                    "elevation_gain_m": elevation_gain,
+                    "elevation_loss_m": elevation_loss,
+                    "min_elevation_m": min_h,
+                    "max_elevation_m": max_h,
+                    "estimated_time_h": hours,
+                    "start_location": f"Etappe {len(stages) + 1} Start",
+                    "end_location": f"Etappe {len(stages) + 1} Ziel",
+                })
+                stage = [route_points[i]]
+                dist = 0.0
+
+        return {
+            "total_distance_km": round(total, 1),
+            "stages": stages
+        }
+
+    except Exception as e:
+        log_error(f"❌ Fehler bei /route_to_stages: {e}")
         return {"error": str(e)}
