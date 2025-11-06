@@ -239,7 +239,10 @@ def reverse_geocode(lat, lon):
     return props.get("locality") or props.get("name") or props.get("region") or "Unbekannt"
 
 def get_elevations(points):
-    """Höhenprofil mit robustem ORS-Parsing und Fallback."""
+    """Höhenprofil mit robustem ORS-Parsing, Logging und Fallback."""
+    log_info(f"📡 get_elevations() aufgerufen mit {len(points)} Punkten")
+
+    # Reduziere die Anzahl der Punkte für schnelleren Abruf
     sampled = points[::10] if len(points) > 10 else points
     headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
 
@@ -254,20 +257,21 @@ def get_elevations(points):
         },
     }
 
+    log_info(f"🌐 Anfrage an ORS /elevation/line mit {len(sampled)} Punkten …")
     data = cached_post_request(line_url, line_body, headers=headers, category="elevation")
 
     coords = []
     if isinstance(data, dict):
-        # Hauptfall: data["geometry"]["coordinates"]
+        # Standardstruktur: geometry -> coordinates
         if "geometry" in data and isinstance(data["geometry"], dict):
             coords = data["geometry"].get("coordinates", [])
-        # Alternative Struktur: data["coordinates"]
+        # Alternative Struktur (Fallback)
         elif "coordinates" in data:
             coords = data["coordinates"]
 
     if coords and all(len(c) > 2 for c in coords):
         heights = [c[2] for c in coords]
-        log_info(f"✅ Höhen über /line ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
+        log_info(f"✅ Höhen über /line erhalten ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
         return heights
 
     log_error(f"⚠️ Keine gültigen Höhen über /line erhalten ({len(coords)} Punkte). Fallback auf /point …")
@@ -282,6 +286,7 @@ def get_elevations(points):
         },
     }
 
+    log_info("🌐 Fallback auf /elevation/point …")
     data = cached_post_request(point_url, point_body, headers=headers, category="elevation")
 
     coords = []
@@ -293,12 +298,14 @@ def get_elevations(points):
 
     if coords and all(len(c) > 2 for c in coords):
         heights = [c[2] for c in coords]
-        log_info(f"✅ Höhen über /point ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
+        log_info(f"✅ Höhen über /point erhalten ({len(heights)} Punkte, min={min(heights)}, max={max(heights)})")
         return heights
 
+    # --- 3️⃣ Kein Ergebnis ---
     api_stats["api_errors"] += 1
     log_error("❌ Keine Höheninformationen verfügbar – Fallbackwert genutzt.")
     return []
+
 
 
 # ------------------------------------------------------------
@@ -427,6 +434,16 @@ def stage_details(stage: dict):
         api_stats["api_errors"] += 1
         log_error(f"❌ Fehler bei Etappen-Analyse: {e}")
         return {"error": str(e)}
+# ------------------------------------------------------------
+# Status der API
+# ------------------------------------------------------------
+@app.get("/ors_status")
+def ors_status():
+    try:
+        resp = requests.get("https://api.openrouteservice.org/health", timeout=5)
+        return {"status": resp.json()}
+    except Exception as e:
+        return {"status": "unreachable", "error": str(e)}
 
 # ------------------------------------------------------------
 # 📈 Höhenprofil (Proxy)
@@ -461,7 +478,6 @@ def route_extended(data: dict):
         "stops": ["Würzburg", "Kassel"]
     }
     """
-    
     try:
         # 1️⃣ Orte geokodieren
         def geocode_place(place):
@@ -478,7 +494,6 @@ def route_extended(data: dict):
             log_info(f"📍 {place} → {coords[1]}, {coords[0]}")
             return coords[1], coords[0]
 
-
         start = geocode_place(data["start"])
         end = geocode_place(data["end"])
         stops = [geocode_place(s) for s in data.get("stops", []) if s.strip()]
@@ -487,12 +502,12 @@ def route_extended(data: dict):
         all_points = [start] + stops + [end]
         coordinates = [[lon, lat] for lat, lon in all_points]
 
-        
         log_info(f"➡️ Start: {start}, Ziel: {end}, Stops: {stops}")
         log_info(f"➡️ ORS-Koordinaten (lon,lat): {coordinates}")
 
         # 3️⃣ Route berechnen
-        
+        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
+        headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
         body = {
             "coordinates": coordinates,
             "preference": "recommended",
@@ -501,15 +516,16 @@ def route_extended(data: dict):
             "language": "de",
             "elevation": True,
         }
-        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
-        headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
-        route_data = cached_post_request(url, body, headers=headers, category="route")
 
+        route_data = cached_post_request(url, body, headers=headers, category="route")
+        coords = []
+        distance_km = 0.0
+
+        # 4️⃣ ORS-Antwort auswerten
         if "features" in route_data:
-            # 🧭 altes GeoJSON-Format
             try:
                 coords = route_data["features"][0]["geometry"]["coordinates"]
-                distance_km = route_data["features"][0]["properties"]["summary"]["distance"] / 1000
+                distance_km = route_data["features"][0]["properties"]["summary"]["distance"]
                 log_info(f"🗺️ Route (GeoJSON): {len(coords)} Punkte, {distance_km:.1f} km")
             except Exception as e:
                 log_error(f"❌ Fehler beim Auswerten der GeoJSON-Daten: {e}")
@@ -526,7 +542,7 @@ def route_extended(data: dict):
                 if not coords:
                     raise ValueError("Keine Koordinaten nach Decode erhalten")
 
-                distance_km = route["summary"]["distance"]
+                distance_km = route["summary"]["distance"]  # ✅ bereits in km
                 log_info(f"🗺️ Route (manuell decoded): {len(coords)} Punkte, {distance_km:.1f} km")
             except Exception as e:
                 log_error(f"❌ Fehler beim Decodieren der Route: {e}")
@@ -536,35 +552,39 @@ def route_extended(data: dict):
             log_error(f"❌ Unerwartetes Format: {route_data}")
             return {"error": "Unerwartete API-Antwort von ORS"}
 
-        # Höhen extrahieren (wenn vorhanden)
-        route_coords = [[lat, lon] for lon, lat, *_ in coords]
-        heights = [c[2] for c in coords if len(c) > 2]
-        min_h, max_h = (min(heights), max(heights)) if heights else (0, 0)
+        # 5️⃣ Höhen extrahieren + Summen berechnen
+        if coords:
+            route_coords = [[lat, lon] for lon, lat, *_ in coords]
+            heights = [c[2] for c in coords if len(c) > 2]
+
+            # 🔍 Plausibilitätsprüfung – Fallback bei zu flachen Höhen
+            if not heights or max(heights) - min(heights) < 50:
+                log_info("⚠️ Polyline enthält keine realen Höhen – hole Höhenprofil nach …")
+                heights = get_elevations([[lon, lat] for lat, lon in route_coords])
+
+            if heights and len(heights) > 1:
+                diffs = [round(heights[i + 1] - heights[i], 2) for i in range(len(heights) - 1)]
+                total_up = sum(d for d in diffs if d > 0.5)
+                total_down = abs(sum(d for d in diffs if d < -0.5))
+                min_h, max_h = min(heights), max(heights)
+            else:
+                total_up = total_down = 0
+                min_h = max_h = 0
+        else:
+            route_coords = []
+            total_up = total_down = min_h = max_h = 0
 
         log_info(f"✅ Erweiterte Route erfolgreich verarbeitet: {len(route_coords)} Punkte")
 
+        # 6️⃣ Ergebnis zurückgeben
         return {
             "route": route_coords,
             "distance_km": round(distance_km, 1),
             "min_elevation": int(min_h),
             "max_elevation": int(max_h),
-        }
-
-
-        coords = route_data["features"][0]["geometry"]["coordinates"]
-        distance_km = route_data["features"][0]["properties"]["summary"]["distance"] / 1000
-
-        # 4️⃣ Höhen abrufen (optional)
-        heights = get_elevations([[lat, lon] for lon, lat in coords])
-        min_h, max_h = (min(heights), max(heights)) if heights else (0, 0)
-
-        log_info(f"🗺️ Erweiterte Route berechnet: {len(coords)} Punkte, {distance_km:.1f} km")
-
-        return {
-            "route": [[lat, lon] for lon, lat in coords],
-            "distance_km": round(distance_km, 1),
-            "min_elevation": int(min_h),
-            "max_elevation": int(max_h),
+            "elevation_gain_m": int(total_up),
+            "elevation_loss_m": int(total_down),
+            "estimated_time_h": round(distance_km / 55, 2),
         }
 
     except Exception as e:

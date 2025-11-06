@@ -30,9 +30,11 @@ export default function RoutePlanner({ onPlanRoute, onReverse }) {
             placeholder="🏍️ Start (z. B. München)"
             value={start}
             onChange={(e) => setStart(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 
-                       w-full sm:w-56 bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 
-                       focus:ring-blue-500 outline-none transition"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2
+                       w-full sm:w-56 bg-white text-gray-900 
+                       dark:bg-gray-800 dark:text-gray-100 
+                       focus:ring-2 focus:ring-blue-500 outline-none transition"
+
           />
 
           <input
@@ -40,9 +42,10 @@ export default function RoutePlanner({ onPlanRoute, onReverse }) {
             placeholder="🏁 Ziel (z. B. Hamburg)"
             value={end}
             onChange={(e) => setEnd(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 
-                       w-full sm:w-56 bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 
-                       focus:ring-blue-500 outline-none transition"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2
+                       w-full sm:w-56 bg-white text-gray-900 
+                       dark:bg-gray-800 dark:text-gray-100 
+                       focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
 
           <input
@@ -50,9 +53,10 @@ export default function RoutePlanner({ onPlanRoute, onReverse }) {
             placeholder="➕ Zwischenstopps (optional, Komma getrennt)"
             value={stops}
             onChange={(e) => setStops(e.target.value)}
-            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2 
-                       w-full sm:w-72 bg-gray-50 dark:bg-gray-800 dark:text-white focus:ring-2 
-                       focus:ring-blue-500 outline-none transition"
+            className="border border-gray-300 dark:border-gray-600 rounded-md px-4 py-2
+                       w-full sm:w-56 bg-white text-gray-900 
+                       dark:bg-gray-800 dark:text-gray-100 
+                       focus:ring-2 focus:ring-blue-500 outline-none transition"
           />
         </div>
 

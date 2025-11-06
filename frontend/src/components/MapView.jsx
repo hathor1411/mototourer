@@ -114,8 +114,8 @@ export default function MapView() {
       // Berechne die Bounding-Box der Etappe
       const bounds = stage.points.map(p => [p[0], p[1]]);
       map.fitBounds(bounds, { padding: [50, 50] }); // ✅ Zoom auf Etappe
-    }, [stage, map]);
       map.setZoom(7); // oder 8, je nach gewünschtem Detailgrad
+    }, [stage, map]);
     return null;
   }
 
