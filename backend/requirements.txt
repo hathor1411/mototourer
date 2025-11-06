@@ -3,3 +3,4 @@ uvicorn==0.32.0
 requests==2.32.4
 httpx==0.28.1
 geopy==2.4.1
+openrouteservice
