@@ -26,11 +26,15 @@ export default function MapView() {
         const saved = localStorage.getItem("mototourer_tour");
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            console.log("✅ Tour aus LocalStorage geladen.");
-            setStages(parsed);
-            setLoading(false);
-            return;
+          if (parsed) {
+            const list = parsed.stages || parsed;
+            if (Array.isArray(list) && list.length > 0) {
+              console.log("✅ Tour aus LocalStorage geladen:", list.length, "Etappen");
+              setStages(list);
+              setActiveStage(0);
+              setLoading(false);
+              return;
+            }
           }
         }
       }
@@ -88,12 +92,24 @@ export default function MapView() {
     const map = useMap();
     useEffect(() => {
       if (!stage?.points?.length) return;
-      const bounds = stage.points.map(p => [p[0], p[1]]);
-      map.fitBounds(bounds, { padding: [50, 50] });
-      map.setZoom(7);
-    }, [stage, map]);
+      const bounds = L.latLngBounds(stage.points);
+      setTimeout(() => {
+        map.fitBounds(bounds, { padding: [60, 60] });
+      }, 300); // kurz warten, bis Karte fertig ist
+    }, [stage]);
     return null;
   }
+
+  function FixMapResize() {
+    const map = useMap();
+    useEffect(() => {
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 400); // Karte nach 400 ms neu berechnen
+    }, [map]);
+    return null;
+  }
+
 
   // 🔁 Neu berechnen
   const handleRecalculate = () => loadTour(true);
@@ -153,6 +169,7 @@ export default function MapView() {
         <RoutePlanner
           onPlanRoute={async ({ start, end, stops }) => {
             setLoading(true);
+            setProgress({ current: 0, total: 0 }); // 🧩 hier hinzufügen
             try {
               const res = await fetch("http://127.0.0.1:8000/route_to_stages", {
                 method: "POST",
@@ -160,7 +177,6 @@ export default function MapView() {
                 body: JSON.stringify({ start, end, stops, stage_length_km: 300 }),
               });
 
-              // 🔧 hier wird data deklariert!
               const data = await res.json();
 
               if (data.error) {
@@ -169,6 +185,7 @@ export default function MapView() {
               }
 
               if (data.stages && data.stages.length > 0) {
+                setProgress({ current: 0, total: data.stages.length }); // 🧩 korrekt setzen
                 setStages(data.stages);
                 localStorage.setItem("mototourer_tour", JSON.stringify(data.stages));
                 setError(null);
@@ -184,6 +201,64 @@ export default function MapView() {
               setLoading(false);
             }
           }}
+
+          // 🔁 Hier kommt jetzt der neue onReverse-Handler:
+          onReverse={async ({ start, end }) => {
+          // 🧭 Eingaben tauschen
+          const startInput = document.querySelector("input[placeholder*='Start']");
+          const endInput = document.querySelector("input[placeholder*='Ziel']");
+          const stopsInput = document.querySelector("input[placeholder*='Zwischen']");
+
+          if (!startInput || !endInput) return;
+
+          const temp = startInput.value;
+          startInput.value = endInput.value;
+          endInput.value = temp;
+
+          // Zwischenstopps ggf. umkehren
+          let stops = [];
+          if (stopsInput?.value) {
+            stops = stopsInput.value.split(",").map(s => s.trim()).filter(Boolean).reverse();
+            stopsInput.value = stops.join(", ");
+          }
+
+          // 🧮 Neue Route sofort berechnen
+          const newStart = startInput.value;
+          const newEnd = endInput.value;
+
+          console.log(`🔁 Berechne Rückroute: ${newStart} → ${newEnd}`);
+
+          try {
+            setLoading(true);
+            const res = await fetch("http://127.0.0.1:8000/route_to_stages", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ start: newStart, end: newEnd, stops, stage_length_km: 300 }),
+            });
+
+            const data = await res.json();
+
+            if (data.error) {
+              setError(data.error);
+              return;
+            }
+
+            if (data.stages && data.stages.length > 0) {
+              setStages(data.stages);
+              localStorage.setItem("mototourer_tour", JSON.stringify(data.stages));
+              setError(null);
+              setActiveStage(0);
+              console.log("✅ Rückroute berechnet:", data.stages.length, "Etappen");
+            } else {
+              setError("Keine Etappen erhalten.");
+            }
+          } catch (err) {
+            console.error("💥 Fehler bei der Umkehr-Berechnung:", err);
+            setError(err.message);
+          } finally {
+            setLoading(false);
+          }
+        }}
         />
 
         <ButtonBar
@@ -204,6 +279,7 @@ export default function MapView() {
           {/* 🗺️ Karte */}
           <div className="h-[75vh] min-h-[400px] bg-gray-200 rounded-xl overflow-hidden shadow">
             <MapContainer center={[48.1351, 11.582]} zoom={6} style={{ height: "100%", width: "100%" }}>
+              <FixMapResize /> 
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -213,12 +289,17 @@ export default function MapView() {
 
               {stages.map((stage, i) => (
                 <Polyline
-                  key={i}
+                  key={`${i}-${activeStage === i}`} // 🔧 Force re-render
                   positions={stage.points}
-                  color={i === activeStage ? "#ffcc00" : ["#0077ff", "#ff4444", "#22bb33", "#ff8800", "#9933ff"][i % 5]}
+                  color={i === activeStage ? "#FFD700" : colors[i % colors.length]}
                   weight={i === activeStage ? 8 : 5}
                   opacity={i === activeStage ? 1 : 0.7}
-                  eventHandlers={{ click: (e) => { setActiveStage(i); setPopupPos(e.latlng); } }}
+                  eventHandlers={{
+                    click: (e) => {
+                      setActiveStage(i);
+                      setPopupPos(e.latlng);
+                    },
+                  }}
                 />
               ))}
 
