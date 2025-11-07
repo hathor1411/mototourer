@@ -1,11 +1,11 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from fastapi.middleware.cors import CORSMiddleware
 from geopy.distance import geodesic
 import httpx
 import os, json, hashlib, requests, time, logging
 from datetime import datetime, timedelta
 from openrouteservice import convert
-
+from fastapi.middleware.cors import CORSMiddleware
 
 # ------------------------------------------------------------
 # 🚀 FastAPI-Setup
@@ -14,7 +14,13 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://hathor1411.github.io",
+        "https://hathor1411.github.io/mototourer",
+        "https://cuddly-space-succotash-64wg7jg9469cr79w-8000.app.github.dev",
+        "http://localhost:5173",  # falls du lokal entwickelst
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -190,6 +196,49 @@ def initialize_cache_structure():
 
 # Initialisierung beim Start
 initialize_cache_structure()
+
+# ------------------------------------------------------------
+# 💬 Erweiterter Geocode-/Autocomplete-Cache
+# ------------------------------------------------------------
+def cached_autocomplete(query: str, max_age_hours: int = 168):  # 7 Tage
+    """Cached Autocomplete-Vorschläge (bis zu 7 Tage gültig)."""
+    url = "https://api.openrouteservice.org/geocode/autocomplete"
+    params = {
+        "api_key": ORS_API_KEY,
+        "text": query,
+        "lang": "de",
+        "size": 5,
+        "boundary.country": "DE,AT,CH,DK,NO,SE,NL,BE,FR,IT"
+    }
+    data = cached_get_request(url, params=params, category="autocomplete")
+    results = []
+    if isinstance(data, dict) and "features" in data:
+        for f in data["features"]:
+            props = f.get("properties", {})
+            coords = f.get("geometry", {}).get("coordinates", [])
+            if len(coords) >= 2:
+                results.append({
+                    "name": props.get("label") or props.get("name"),
+                    "lat": coords[1],
+                    "lon": coords[0]
+                })
+    return results
+
+
+def cached_geocode(place: str, max_age_hours: int = 720):  # 30 Tage
+    """Cached Geocoding (Ort → Koordinaten)."""
+    url = "https://api.openrouteservice.org/geocode/search"
+    params = {"api_key": ORS_API_KEY, "text": place, "size": 1, "lang": "de"}
+    data = cached_get_request(url, params=params, category="geocode")
+
+    if isinstance(data, dict) and "features" in data and data["features"]:
+        coords = data["features"][0]["geometry"]["coordinates"]
+        log_info(f"📍 {place} → {coords[1]}, {coords[0]} (cached)")
+        return coords[1], coords[0]
+    else:
+        log_error(f"❌ Ort nicht gefunden: {place}")
+        raise ValueError(f"Ort nicht gefunden: {place}")
+
 
 def decode_ors_polyline(encoded):
     """Decodiert ORS-Polyline mit optionaler Höhe (lon, lat, ele)."""
@@ -481,9 +530,13 @@ def route_extended(data: dict):
     try:
         # 1️⃣ Orte geokodieren
         def geocode_place(place):
-            url = "https://api.openrouteservice.org/geocode/search"
-            params = {"api_key": ORS_API_KEY, "text": place, "size": 1, "lang": "de"}
-            result = cached_get_request(url, params=params, category="geocode")
+            """Ortsauflösung mit erweitertem Cache."""
+            try:
+                lat, lon = cached_geocode(place)
+                return lat, lon
+            except Exception as e:
+                log_error(f"❌ Fehler beim Geocoding '{place}': {e}")
+                raise
 
             features = result.get("features", [])
             if not features:
@@ -596,74 +649,111 @@ def route_extended(data: dict):
 # 🏍️ Ganze Route in Etappen zerlegen
 # ------------------------------------------------------------
 @app.post("/route_to_stages")
-def route_to_stages(data: dict):
+async def route_to_stages(data: dict):
     """
-    Erwartet JSON:
-    {
-        "start": "München",
-        "end": "Hamburg",
-        "stops": ["Leipzig"],
-        "stage_length_km": 300
-    }
+    Erweiterte Routenberechnung mit mehreren Zwischenstopps.
+    Start, mehrere Stops, Ziel → durchgehende Route + Etappenberechnung.
     """
     try:
-        import requests
-        from geopy.distance import geodesic
+        start = data.get("start")
+        end = data.get("end")
+        stops = data.get("stops", [])
 
-        # 1️⃣ Erst komplette Route holen (wie /route_extended)
-        url = "http://127.0.0.1:8000/route_extended"
-        headers = {"Content-Type": "application/json"}
-        resp = requests.post(url, json=data, headers=headers, timeout=60)
-        route_data = resp.json()
+        if not start or not end:
+            return {"error": "Start- und Zielort müssen angegeben werden."}
 
-        if "error" in route_data:
-            return route_data
+        print(f"📍 Start: {start}")
+        print(f"📍 Ziel: {end}")
+        if stops:
+            print(f"📍 Zwischenstopps ({len(stops)}): {stops}")
 
-        route_points = route_data.get("route", [])
-        if not route_points:
-            return {"error": "Keine Route gefunden."}
+        # 🧭 Geokodierung aller Orte in richtiger Reihenfolge
+        all_coords = []
+        try:
+            start_coords = geocode_location(start)
+            all_coords.append(start_coords)
 
-        # 2️⃣ Route in Etappen zerlegen
-        stage_length_km = data.get("stage_length_km", 300)
-        stages = []
-        stage = [route_points[0]]
-        dist = total = 0.0
+            for stop in stops:
+                coords = geocode_location(stop)
+                all_coords.append(coords)
 
-        for i in range(1, len(route_points)):
-            d = geodesic(route_points[i - 1], route_points[i]).km
-            dist += d
-            total += d
-            stage.append(route_points[i])
+            end_coords = geocode_location(end)
+            all_coords.append(end_coords)
+        except Exception as e:
+            print(f"❌ Fehler bei der Geokodierung: {e}")
+            return {"error": f"Fehler bei der Geokodierung: {e}"}
 
-            if dist >= stage_length_km or i == len(route_points) - 1:
-                heights = get_elevations(stage)
-                if heights:
-                    elevation_gain = int(sum(max(heights[j] - heights[j - 1], 0) for j in range(1, len(heights))))
-                    elevation_loss = int(sum(max(heights[j - 1] - heights[j], 0) for j in range(1, len(heights))))
-                    min_h, max_h = int(min(heights)), int(max(heights))
-                else:
-                    elevation_gain = elevation_loss = min_h = max_h = 0
+        print(f"➡️ ORS-Koordinaten (lon,lat): {all_coords}")
 
-                hours = round(dist / 55, 2)
-                stages.append({
-                    "points": stage,
-                    "distance_km": round(dist, 1),
-                    "elevation_gain_m": elevation_gain,
-                    "elevation_loss_m": elevation_loss,
-                    "min_elevation_m": min_h,
-                    "max_elevation_m": max_h,
-                    "estimated_time_h": hours,
-                    "start_location": f"Etappe {len(stages) + 1} Start",
-                    "end_location": f"Etappe {len(stages) + 1} Ziel",
-                })
-                stage = [route_points[i]]
-                dist = 0.0
+        # 🚗 Gesamtroute über ORS anfragen
+        route_data = ors_directions_request(all_coords)
+
+        if not route_data:
+            return {"error": "Keine Route von ORS erhalten."}
+
+        decoded_points, distance_km = decode_route(route_data)
+        print(f"🗺️ Route (manuell decoded): {len(decoded_points)} Punkte, {distance_km:.1f} km")
+
+        # ⛰️ Höhenprofil für gesamte Route
+        elevation_data = get_elevations(decoded_points)
+        if not elevation_data:
+            print("⚠️ Keine Höheninformationen erhalten – Fallback auf Dummywerte")
+            elevation_data = {"elevations": [], "min": 0, "max": 0}
+
+        # 🧩 Etappen berechnen
+        stages = split_route(decoded_points, stage_length_km=300)
+
+        # 🧠 Höhen pro Etappe ermitteln
+        stage_details = []
+        for i, stage in enumerate(stages):
+            elev = get_elevations(stage)
+            if elev:
+                gain, loss = calc_up_down(elev["elevations"])
+                min_elev = elev["min"]
+                max_elev = elev["max"]
+            else:
+                gain, loss, min_elev, max_elev = 0, 0, 0, 0
+
+            stage_info = {
+                "etappe": i + 1,
+                "distance_km": calc_distance(stage),
+                "min_elevation_m": min_elev,
+                "max_elevation_m": max_elev,
+                "elevation_gain_m": gain,
+                "elevation_loss_m": loss,
+                "points": stage,
+                "start_location": start if i == 0 else stops[i - 1],
+                "end_location": stops[i] if i < len(stops) else end,
+            }
+
+            stage_details.append(stage_info)
+
+        print(f"✅ {len(stage_details)} Etappen generiert.")
 
         return {
-            "total_distance_km": round(total, 1),
-            "stages": stages
+            "distance_km": distance_km,
+            "stages": stage_details,
+            "min_elevation": elevation_data["min"],
+            "max_elevation": elevation_data["max"],
         }
 
     except Exception as e:
-        log_error(f"❌ Fehler bei /route_to_stages: {e}")
+        print(f"❌ ❌ Fehler bei /route_to_stages: {e}")
         return {"error": str(e)}
+
+# ------------------------------------------------------------
+# Autocomplete
+# ------------------------------------------------------------
+@app.get("/autocomplete")
+def autocomplete(q: str = Query(..., description="Ort, nach dem gesucht wird")):
+    """Bietet Autocomplete-Vorschläge mit Caching."""
+    try:
+        results = cached_autocomplete(q)
+        if results:
+            log_info(f"✅ Autocomplete: {q} ({len(results)} Treffer, ggf. cached)")
+            return {"results": results, "cached": True}
+        else:
+            return {"results": [], "cached": False}
+    except Exception as e:
+        log_error(f"❌ Fehler bei /autocomplete: {e}")
+        return {"error": str(e), "results": []}
