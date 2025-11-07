@@ -91,7 +91,20 @@ def _get_cache_path(url: str, body_or_params, category: str):
     return os.path.join(category_dir, f"{key}.json")
 
 def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24, category="misc"):
-    path = _get_cache_path(url, body, category)
+    """
+    Führt einen gecachten POST-Request aus (z. B. für ORS Directions oder Elevation).
+    Cached die Antwort als JSON-Datei und nutzt sie erneut, solange sie gültig ist.
+    """
+    # 🔐 Sicherstellen, dass ein Header existiert und der ORS-Key gesetzt ist
+    if headers is None:
+        headers = {}
+    headers["Authorization"] = ORS_API_KEY
+    headers["Content-Type"] = "application/json"
+
+    # 📁 Cache-Pfad bestimmen
+    path = _get_cache_path(url, body or {}, category)
+
+    # ✅ Cache prüfen
     if os.path.exists(path):
         age_hours = (time.time() - os.path.getmtime(path)) / 3600
         if age_hours < max_age_hours:
@@ -103,6 +116,7 @@ def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24, ca
             except Exception:
                 pass
 
+    # 🌐 Falls kein Cache oder abgelaufen: API aufrufen
     try:
         resp = requests.post(url, json=body, headers=headers, timeout=timeout)
         api_stats["api_calls"] += 1
@@ -115,15 +129,12 @@ def cached_post_request(url, body, headers=None, timeout=8, max_age_hours=24, ca
         else:
             api_stats["api_errors"] += 1
             log_error(f"⚠️ Fehler {resp.status_code}: {resp.text[:120]}")
-            return {"warning": f"Fehler {resp.status_code}"}
-    except requests.exceptions.Timeout:
-        api_stats["api_errors"] += 1
-        log_error("⏳ Timeout bei POST")
-        return {"warning": "Timeout"}
+            return {"warning": f"Fehler {resp.status_code}", "error": resp.text}
     except Exception as e:
         api_stats["api_errors"] += 1
         log_error(f"💥 Cache-POST-Fehler: {e}")
         return {"warning": str(e)}
+
 
 def cached_get_request(url, params=None, headers=None, timeout=8, max_age_hours=24, category="misc"):
     path = _get_cache_path(url, params or {}, category)
@@ -272,6 +283,24 @@ def decode_ors_polyline(encoded):
     return coords
 
 # ------------------------------------------------------------
+# 🛣️ Snap-to-Road (verhindert 2010-Fehler bei Wasser/Fährpunkten)
+# ------------------------------------------------------------
+def snap_to_road(lon, lat):
+    """Snapt einen Punkt auf die nächste routbare Straße, falls er zu weit entfernt liegt."""
+    try:
+        url = "https://api.openrouteservice.org/v2/snap"
+        headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
+        body = {"coordinates": [[lon, lat]]}
+        resp = requests.post(url, json=body, headers=headers, timeout=8)
+        if resp.status_code == 200:
+            data = resp.json()
+            if "coordinates" in data and data["coordinates"]:
+                return data["coordinates"][0]
+    except Exception as e:
+        log_error(f"⚠️ Snap-Fehler: {e}")
+    return [lon, lat]
+
+# ------------------------------------------------------------
 # 🧭 Hilfsfunktionen
 # ------------------------------------------------------------
 def reverse_geocode(lat, lon):
@@ -291,8 +320,17 @@ def get_elevations(points):
     """Höhenprofil mit robustem ORS-Parsing, Logging und Fallback."""
     log_info(f"📡 get_elevations() aufgerufen mit {len(points)} Punkten")
 
+    # 🧠 Sicherstellen, dass alle Punkte im richtigen Format sind [lon, lat]
+    safe_points = []
+    for p in points:
+        # Wenn versehentlich [lat, lon] hereinkommt → umdrehen
+        if abs(p[0]) > 90:  # lat darf nie > 90 oder < -90 sein
+            safe_points.append([p[1], p[0]])
+        else:
+            safe_points.append(p)
+
     # Reduziere die Anzahl der Punkte für schnelleren Abruf
-    sampled = points[::10] if len(points) > 10 else points
+    sampled = safe_points[::10] if len(safe_points) > 10 else safe_points
     headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
 
     # --- 1️⃣ Versuch: /elevation/line ---
@@ -302,7 +340,7 @@ def get_elevations(points):
         "format_out": "geojson",
         "geometry": {
             "type": "LineString",
-            "coordinates": [[lon, lat] for lat, lon in sampled],
+            "coordinates": sampled,  # ✅ keine Vertauschung mehr!
         },
     }
 
@@ -311,10 +349,8 @@ def get_elevations(points):
 
     coords = []
     if isinstance(data, dict):
-        # Standardstruktur: geometry -> coordinates
         if "geometry" in data and isinstance(data["geometry"], dict):
             coords = data["geometry"].get("coordinates", [])
-        # Alternative Struktur (Fallback)
         elif "coordinates" in data:
             coords = data["coordinates"]
 
@@ -331,7 +367,7 @@ def get_elevations(points):
         "format_in": "geojson",
         "geometry": {
             "type": "MultiPoint",
-            "coordinates": [[lon, lat] for lat, lon in sampled],
+            "coordinates": sampled,  # ✅ auch hier korrektes Format
         },
     }
 
@@ -355,7 +391,34 @@ def get_elevations(points):
     log_error("❌ Keine Höheninformationen verfügbar – Fallbackwert genutzt.")
     return []
 
+# ------------------------------------------------------------
+# 🚗 OpenRouteService Directions Request
+# ------------------------------------------------------------
+def ors_directions_request(coords: list, profile: str = "driving-car"):
+    """
+    Ruft die Route über OpenRouteService ab.
+    Nimmt eine Liste von [lon, lat]-Koordinaten entgegen.
+    """
+    try:
+        url = f"https://api.openrouteservice.org/v2/directions/{profile}"
 
+        body = {
+            "coordinates": coords,
+            "instructions": False,
+            "elevation": True,
+        }
+
+        headers = {"Authorization": ORS_API_KEY}
+        data = cached_post_request(url, body, category="route")
+
+        if not data:
+            raise ValueError("Keine Daten von ORS erhalten.")
+
+        return data
+
+    except Exception as e:
+        log_error(f"❌ Fehler in ors_directions_request: {e}")
+        return None
 
 # ------------------------------------------------------------
 # 🔍 Test
@@ -370,7 +433,7 @@ def ping():
 @app.get("/route")
 def get_route(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: float = 47.3769, end_lon: float = 8.5417):
     try:
-        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
         params = {"api_key": ORS_API_KEY, "start": f"{start_lon},{start_lat}", "end": f"{end_lon},{end_lat}"}
         data = cached_get_request(url, params=params, category="route")
         if "features" not in data:
@@ -390,7 +453,7 @@ def get_route(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: f
 # ------------------------------------------------------------
 @app.get("/stages")
 def get_stages(start_lat: float = 48.1351, start_lon: float = 11.5820, end_lat: float = 57.5886, end_lon: float = 9.9592, stage_length_km: float = 300.0):
-    url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
+    url = "https://api.openrouteservice.org/v2/directions/driving-car"
     params = {"api_key": ORS_API_KEY, "start": f"{start_lon},{start_lat}", "end": f"{end_lon},{end_lat}"}
     data = cached_get_request(url, params=params, category="route")
 
@@ -528,39 +591,29 @@ def route_extended(data: dict):
     }
     """
     try:
-        # 1️⃣ Orte geokodieren
-        def geocode_place(place):
-            """Ortsauflösung mit erweitertem Cache."""
+        # 1️⃣ Orte geokodieren (Cache-Version aus globalem Scope benutzen)
+        def safe_geocode(place: str):
             try:
                 lat, lon = cached_geocode(place)
+                log_info(f"📍 {place} → {lat}, {lon} (cached)")
                 return lat, lon
             except Exception as e:
                 log_error(f"❌ Fehler beim Geocoding '{place}': {e}")
                 raise
 
-            features = result.get("features", [])
-            if not features:
-                log_error(f"❌ Ort nicht gefunden: {place}")
-                raise ValueError(f"Ort nicht gefunden: {place}")
+        start = safe_geocode(data["start"])
+        end = safe_geocode(data["end"])
+        stops = [safe_geocode(s) for s in data.get("stops", []) if s.strip()]
 
-            coords = features[0]["geometry"]["coordinates"]  # [lon, lat]
-            log_info(f"📍 {place} → {coords[1]}, {coords[0]}")
-            return coords[1], coords[0]
-
-        start = geocode_place(data["start"])
-        end = geocode_place(data["end"])
-        stops = [geocode_place(s) for s in data.get("stops", []) if s.strip()]
-
-        # 2️⃣ Wegpunkte aufbauen
+        # 2️⃣ Koordinaten vorbereiten (ORS erwartet [lon, lat])
         all_points = [start] + stops + [end]
         coordinates = [[lon, lat] for lat, lon in all_points]
 
         log_info(f"➡️ Start: {start}, Ziel: {end}, Stops: {stops}")
         log_info(f"➡️ ORS-Koordinaten (lon,lat): {coordinates}")
 
-        # 3️⃣ Route berechnen
-        url = "https://api.openrouteservice.org/v2/directions/driving-hgv"
-        headers = {"Authorization": ORS_API_KEY, "Content-Type": "application/json"}
+        # 3️⃣ Route über ORS abrufen (mit Cache)
+        url = "https://api.openrouteservice.org/v2/directions/driving-car"
         body = {
             "coordinates": coordinates,
             "preference": "recommended",
@@ -570,50 +623,40 @@ def route_extended(data: dict):
             "elevation": True,
         }
 
-        route_data = cached_post_request(url, body, headers=headers, category="route")
+        route_data = cached_post_request(url, body, category="route")
+
+        # 4️⃣ ORS-Antwort prüfen & auswerten
         coords = []
         distance_km = 0.0
 
-        # 4️⃣ ORS-Antwort auswerten
-        if "features" in route_data:
-            try:
-                coords = route_data["features"][0]["geometry"]["coordinates"]
-                distance_km = route_data["features"][0]["properties"]["summary"]["distance"]
-                log_info(f"🗺️ Route (GeoJSON): {len(coords)} Punkte, {distance_km:.1f} km")
-            except Exception as e:
-                log_error(f"❌ Fehler beim Auswerten der GeoJSON-Daten: {e}")
-                return {"error": "Ungültige GeoJSON-Daten"}
+        if "features" in route_data:  # GeoJSON-Format
+            f = route_data["features"][0]
+            coords = f["geometry"]["coordinates"]
+            distance_km = f["properties"]["summary"]["distance"]
+            log_info(f"🗺️ Route (GeoJSON): {len(coords)} Punkte, {distance_km:.1f} km")
 
-        elif "routes" in route_data:
-            try:
-                route = route_data["routes"][0]
-                geometry = route.get("geometry")
-                if not geometry or not isinstance(geometry, str):
-                    raise ValueError("Fehlende oder ungültige Geometrie")
-
-                coords = decode_ors_polyline(geometry)
-                if not coords:
-                    raise ValueError("Keine Koordinaten nach Decode erhalten")
-
-                distance_km = route["summary"]["distance"]  # ✅ bereits in km
-                log_info(f"🗺️ Route (manuell decoded): {len(coords)} Punkte, {distance_km:.1f} km")
-            except Exception as e:
-                log_error(f"❌ Fehler beim Decodieren der Route: {e}")
-                return {"error": f"Fehler beim Decodieren der Route: {e}"}
+        elif "routes" in route_data:  # Standard-ORS-Format
+            route = route_data["routes"][0]
+            geometry = route.get("geometry")
+            if not geometry or not isinstance(geometry, str):
+                raise ValueError("Fehlende oder ungültige Geometrie")
+            coords = decode_ors_polyline(geometry)
+            if not coords:
+                raise ValueError("Keine Koordinaten nach Decode erhalten")
+            distance_km = route["summary"]["distance"]  # m → km
+            log_info(f"🗺️ Route (manuell decoded): {len(coords)} Punkte, {distance_km:.1f} km")
 
         else:
             log_error(f"❌ Unerwartetes Format: {route_data}")
             return {"error": "Unerwartete API-Antwort von ORS"}
 
-        # 5️⃣ Höhen extrahieren + Summen berechnen
+        # 5️⃣ Höhen berechnen
         if coords:
             route_coords = [[lat, lon] for lon, lat, *_ in coords]
             heights = [c[2] for c in coords if len(c) > 2]
 
-            # 🔍 Plausibilitätsprüfung – Fallback bei zu flachen Höhen
-            log_info("⚙️ Hole Höhenprofil für Route (analog zu /stages) …")
+            log_info("⚙️ Hole Höhenprofil für Route …")
             heights = get_elevations([[lon, lat] for lat, lon in route_coords])
-
 
             if heights and len(heights) > 1:
                 diffs = [round(heights[i + 1] - heights[i], 2) for i in range(len(heights) - 1)]
@@ -621,8 +664,7 @@ def route_extended(data: dict):
                 total_down = abs(sum(d for d in diffs if d < -0.5))
                 min_h, max_h = min(heights), max(heights)
             else:
-                total_up = total_down = 0
-                min_h = max_h = 0
+                total_up = total_down = min_h = max_h = 0
         else:
             route_coords = []
             total_up = total_down = min_h = max_h = 0
@@ -646,99 +688,171 @@ def route_extended(data: dict):
         return {"error": str(e)}
 
 # ------------------------------------------------------------
-# 🏍️ Ganze Route in Etappen zerlegen
+# 🏍️ Route → Etappen (automatische Aufteilung)
 # ------------------------------------------------------------
 @app.post("/route_to_stages")
-async def route_to_stages(data: dict):
+def route_to_stages(data: dict):
     """
-    Erweiterte Routenberechnung mit mehreren Zwischenstopps.
-    Start, mehrere Stops, Ziel → durchgehende Route + Etappenberechnung.
+    Erwartet JSON:
+    {
+        "start": "Eilenburg",
+        "end": "Braunschweig",
+        "stops": ["Leipzig", "Magdeburg"],
+        "stage_length_km": 300
+    }
     """
     try:
         start = data.get("start")
         end = data.get("end")
         stops = data.get("stops", [])
+        stage_length_km = data.get("stage_length_km", 300)
 
         if not start or not end:
             return {"error": "Start- und Zielort müssen angegeben werden."}
 
-        print(f"📍 Start: {start}")
-        print(f"📍 Ziel: {end}")
+        log_info(f"📍 Start: {start}")
+        log_info(f"📍 Ziel: {end}")
         if stops:
-            print(f"📍 Zwischenstopps ({len(stops)}): {stops}")
+            log_info(f"📍 Zwischenstopps ({len(stops)}): {stops}")
 
-        # 🧭 Geokodierung aller Orte in richtiger Reihenfolge
+        # 1️⃣ Orte geokodieren
+        def safe_geocode(place):
+            try:
+                lat, lon = cached_geocode(place)
+                log_info(f"📍 {place} → {lat}, {lon} (cached)")
+                return lat, lon
+            except Exception as e:
+                log_error(f"❌ Fehler beim Geocoding '{place}': {e}")
+                raise
+
+        start_coords = safe_geocode(start)
+        stop_coords = [safe_geocode(s) for s in stops]
+        end_coords = safe_geocode(end)
+
+        all_points = [start_coords] + stop_coords + [end_coords]
+        coordinates = [[lon, lat] for lat, lon in all_points]
+
+        log_info(f"➡️ ORS-Koordinaten (lon,lat): {coordinates}")
+
+        # 2️⃣ Route in Segmenten berechnen
+        log_info("🧭 Starte segmentweise Routenberechnung …")
         all_coords = []
-        try:
-            start_coords = geocode_location(start)
-            all_coords.append(start_coords)
+        total_distance = 0.0
 
-            for stop in stops:
-                coords = geocode_location(stop)
-                all_coords.append(coords)
+        for i in range(len(coordinates) - 1):
+            # 🧠 Punkte vorab auf Straßen „snappen“, um 2010-Fehler zu vermeiden
+            start_snapped = snap_to_road(*coordinates[i])
+            end_snapped = snap_to_road(*coordinates[i + 1])
+            seg_coords = [start_snapped, end_snapped]
 
-            end_coords = geocode_location(end)
-            all_coords.append(end_coords)
-        except Exception as e:
-            print(f"❌ Fehler bei der Geokodierung: {e}")
-            return {"error": f"Fehler bei der Geokodierung: {e}"}
-
-        print(f"➡️ ORS-Koordinaten (lon,lat): {all_coords}")
-
-        # 🚗 Gesamtroute über ORS anfragen
-        route_data = ors_directions_request(all_coords)
-
-        if not route_data:
-            return {"error": "Keine Route von ORS erhalten."}
-
-        decoded_points, distance_km = decode_route(route_data)
-        print(f"🗺️ Route (manuell decoded): {len(decoded_points)} Punkte, {distance_km:.1f} km")
-
-        # ⛰️ Höhenprofil für gesamte Route
-        elevation_data = get_elevations(decoded_points)
-        if not elevation_data:
-            print("⚠️ Keine Höheninformationen erhalten – Fallback auf Dummywerte")
-            elevation_data = {"elevations": [], "min": 0, "max": 0}
-
-        # 🧩 Etappen berechnen
-        stages = split_route(decoded_points, stage_length_km=300)
-
-        # 🧠 Höhen pro Etappe ermitteln
-        stage_details = []
-        for i, stage in enumerate(stages):
-            elev = get_elevations(stage)
-            if elev:
-                gain, loss = calc_up_down(elev["elevations"])
-                min_elev = elev["min"]
-                max_elev = elev["max"]
-            else:
-                gain, loss, min_elev, max_elev = 0, 0, 0, 0
-
-            stage_info = {
-                "etappe": i + 1,
-                "distance_km": calc_distance(stage),
-                "min_elevation_m": min_elev,
-                "max_elevation_m": max_elev,
-                "elevation_gain_m": gain,
-                "elevation_loss_m": loss,
-                "points": stage,
-                "start_location": start if i == 0 else stops[i - 1],
-                "end_location": stops[i] if i < len(stops) else end,
+            url = "https://api.openrouteservice.org/v2/directions/driving-car"
+            body = {
+                "coordinates": seg_coords,
+                "preference": "fastest",  # 🚢 Fähren werden so akzeptiert
+                "instructions": False,
+                "units": "km",
+                "language": "de",
+                "elevation": True,
+                "options": {
+                    "avoid_features": []  # Fähren explizit erlaubt
+                },
             }
 
-            stage_details.append(stage_info)
+            route_data = cached_post_request(url, body, category="route_segment")
 
-        print(f"✅ {len(stage_details)} Etappen generiert.")
+            if not route_data or "routes" not in route_data:
+                log_error(f"⚠️ Segment {i+1} konnte nicht berechnet werden: {seg_coords}")
+                continue
 
-        return {
-            "distance_km": distance_km,
-            "stages": stage_details,
-            "min_elevation": elevation_data["min"],
-            "max_elevation": elevation_data["max"],
-        }
+            route = route_data["routes"][0]
+            geometry = route.get("geometry")
+            if not geometry or not isinstance(geometry, str):
+                log_error(f"⚠️ Segment {i+1}: ungültige Geometrie")
+                continue
+
+            coords = decode_ors_polyline(geometry)
+            dist = route["summary"]["distance"] / 1000
+            total_distance += dist
+            all_coords.extend(coords)
+            log_info(f"✅ Segment {i+1}: {len(coords)} Punkte, {dist:.1f} km")
+
+        if not all_coords:
+            return {"error": "Keine der Teilrouten konnte berechnet werden."}
+
+        log_info(f"🗺️ Gesamtroute aus {len(coordinates)-1} Segmenten: {len(all_coords)} Punkte, {total_distance:.1f} km")
+
+        if not route_data or "routes" not in route_data:
+            log_error(f"⚠️ Teilroute nicht berechenbar – überspringe fehlerhafte Koordinate.")
+            return {
+                "warning": "Ein oder mehrere Punkte konnten nicht verbunden werden. "
+                        "Bitte Zwischenziele prüfen oder Route anpassen."
+            }
+
+        route = route_data["routes"][0]
+        geometry = route.get("geometry")
+        if not geometry or not isinstance(geometry, str):
+            raise ValueError("Fehlende oder ungültige Geometrie")
+
+        coords = decode_ors_polyline(geometry)
+        distance_km = route["summary"]["distance"]
+        log_info(f"🗺️ Gesamtroute: {len(coords)} Punkte, {distance_km:.1f} km")
+
+        # 3️⃣ Etappen aufteilen
+        def split_into_stages(points, total_km, max_stage_km):
+            """Teilt Route in Teilabschnitte (z. B. alle 300 km)."""
+            if total_km <= max_stage_km:
+                return [points]
+
+            ratio = max_stage_km / total_km
+            segment_len = int(len(points) * ratio)
+            stages = []
+            for i in range(0, len(points), segment_len):
+                stages.append(points[i:i + segment_len])
+            return stages
+
+        stages = split_into_stages(coords, distance_km, stage_length_km)
+        log_info(f"✂️ Aufgeteilt in {len(stages)} Etappen à ca. {stage_length_km} km")
+
+        # 4️⃣ Höhenprofil je Etappe
+        result = []
+        for i, segment in enumerate(stages, start=1):
+            latlons = [[lat, lon] for lon, lat, *_ in segment]
+            heights = get_elevations([[lon, lat] for lat, lon in latlons])
+
+            if heights and len(heights) > 1:
+                diffs = [round(heights[j + 1] - heights[j], 2) for j in range(len(heights) - 1)]
+                total_up = sum(d for d in diffs if d > 0.5)
+                total_down = abs(sum(d for d in diffs if d < -0.5))
+                min_h, max_h = min(heights), max(heights)
+            else:
+                total_up = total_down = min_h = max_h = 0
+
+            stage_distance = round(distance_km / len(stages), 1)
+            estimated_time_h = round(stage_distance / 55, 2)
+
+            stage_info = {
+                "stage": i,
+                "points": latlons,
+                "distance_km": stage_distance,
+                "elevation_gain_m": int(total_up),
+                "elevation_loss_m": int(total_down),
+                "min_elevation_m": int(min_h),
+                "max_elevation_m": int(max_h),
+                "estimated_time_h": estimated_time_h,
+                "start_location": start if i == 1 else f"Etappe {i}",
+                "end_location": end if i == len(stages) else f"Etappe {i+1}",
+            }
+
+            result.append(stage_info)
+            log_info(f"✅ Etappe {i}: {stage_distance} km, +{int(total_up)} m / -{int(total_down)} m")
+
+        log_info(f"✅ Route in {len(result)} Etappen erfolgreich verarbeitet")
+
+        return {"stages": result, "total_distance_km": round(distance_km, 1)}
 
     except Exception as e:
-        print(f"❌ ❌ Fehler bei /route_to_stages: {e}")
+        api_stats["api_errors"] += 1
+        log_error(f"❌ Fehler bei /route_to_stages: {e}")
         return {"error": str(e)}
 
 # ------------------------------------------------------------
@@ -757,3 +871,42 @@ def autocomplete(q: str = Query(..., description="Ort, nach dem gesucht wird")):
     except Exception as e:
         log_error(f"❌ Fehler bei /autocomplete: {e}")
         return {"error": str(e), "results": []}
+
+# ------------------------------------------------------------
+# 🧱 Cache-Status (Anzahl & Größe der gespeicherten Dateien)
+# ------------------------------------------------------------
+@app.get("/cache_status")
+def cache_status():
+    """Zeigt Übersicht über Cache-Inhalte (Anzahl & Gesamtgröße je Kategorie)."""
+    try:
+        if not os.path.exists(CACHE_DIR):
+            return {"error": "Cache-Verzeichnis nicht gefunden."}
+
+        summary = {}
+        total_size = 0
+        total_files = 0
+
+        for root, _, files in os.walk(CACHE_DIR):
+            if not files:
+                continue
+            category = os.path.basename(root)
+            file_count = len([f for f in files if f.endswith(".json")])
+            size = sum(os.path.getsize(os.path.join(root, f)) for f in files if f.endswith(".json"))
+            total_files += file_count
+            total_size += size
+            summary[category] = {
+                "files": file_count,
+                "size_kb": round(size / 1024, 1),
+            }
+
+        summary["__total__"] = {
+            "files": total_files,
+            "size_kb": round(total_size / 1024, 1),
+        }
+
+        log_info(f"📦 Cache-Status abgefragt: {total_files} Dateien, {round(total_size / 1024, 1)} KB")
+        return summary
+
+    except Exception as e:
+        log_error(f"❌ Fehler bei /cache_status: {e}")
+        return {"error": str(e)}
