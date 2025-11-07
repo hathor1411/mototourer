@@ -98,3 +98,54 @@ um Motorradfahrer:innen eine einfache, präzise und visuell ansprechende Möglic
 - [ ] Progressive Web App (PWA) / Mobile App  
 - [ ] Community-Funktionen (Kommentare, Tour-Ranking)  
 
+---
+
+## 🧪 **Testing & CI**
+
+- 🔹 **Backend:** pytest (Tests für `/route_extended`, `/route_to_stages`, `/route_reverse`)
+- 🔹 **Frontend:** Vitest + React Testing Library  
+- 🔹 **CI/CD:** GitHub Actions – automatischer Testlauf bei jedem Commit
+
+---
+
+## 💡 **Geplante Integrationen**
+
+| Feature | Beschreibung |
+|----------|---------------|
+| 🧭 OpenTripMap API | Übernachtung & Sehenswürdigkeiten |
+| 🛣️ OpenRouteService | Routing & Höhenprofile |
+| ☁️ Supabase | Nutzerverwaltung & Cloud-Sync |
+| 💳 Stripe | Premium-Optionen |
+| 📱 PWA | Offline-Fähigkeit |
+
+---
+
+## 👨‍💻 **Autor & Entwicklung**
+
+**Projektleitung & Entwicklung:**  
+[@hathor1411](https://github.com/hathor1411)
+
+📍 Deutschland  
+📧 [Kontakt über GitHub Issues](https://github.com/hathor1411/mototourer/issues)
+
+---
+
+## 📸 **Screenshots & Medien (optional)**
+
+*(Platzhalter für Bilder im `/docs/`-Ordner)*  
+
+
+---
+
+## ⚙️ **Lizenz**
+Dieses Projekt ist aktuell proprietär (keine Open-Source-Lizenz).  
+Eine öffentliche Lizenzierung (z. B. MIT oder AGPL) kann zu einem späteren Zeitpunkt erfolgen.
+
+---
+
+## 🏁 **Aktueller Stand**
+
+> ✅ MotoTourer v1.0 – Funktionsfähige Demo  
+> 🔄 Roadmap v2.0–v4.0 in Arbeit  
+> 📅 Letzte Aktualisierung: November 2025  
+
